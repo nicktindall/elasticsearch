@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
@@ -28,6 +31,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest;
 
+import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
@@ -107,12 +111,17 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
         }
 
+        logger.info("--> Starting searches");
+
         for (int i = 0; i < 20; i++) {
-            prepareSearch(mountedIndex).setQuery(
+            SearchRequestBuilder searchRequestBuilder = prepareSearch(mountedIndex).setQuery(
                 randomBoolean()
                     ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
                     : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
-            ).setSize(randomIntBetween(0, 1000)).get().decRef();
+            );
+            int size = randomIntBetween(0, 1000);
+            logger.info("--> Search size/query {}/{}", size, searchRequestBuilder);
+            searchRequestBuilder.setSize(size).get().decRef();
         }
 
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
@@ -124,17 +133,23 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         assertThat(clearCacheResponse.getSuccessfulShards(), greaterThan(0));
         assertThat(clearCacheResponse.getFailedShards(), equalTo(0));
 
-        final String[] dataNodesWithFrozenShards = clusterAdmin().prepareState()
-            .get()
-            .getState()
-            .routingTable()
-            .index(mountedIndex)
-            .shardsWithState(ShardRoutingState.STARTED)
+        logger.info("--> Cleared the cache");
+
+        IndexRoutingTable indexRoutingTable = clusterAdmin().prepareState().get().getState().routingTable().index(mountedIndex);
+        final String[] dataNodesWithFrozenShards = indexRoutingTable.shardsWithState(ShardRoutingState.STARTED)
             .stream()
             .filter(ShardRouting::assignedToNode)
             .map(ShardRouting::currentNodeId)
             .collect(toSet())
             .toArray(String[]::new);
+
+        logger.info("--> Data nodes with frozen shards = {}", Arrays.toString(dataNodesWithFrozenShards));
+        logger.info(
+            "--> Index routing table {}",
+            indexRoutingTable.allShards()
+                .map(s -> Strings.format("%s -> %s", s.shardId(), s.primaryShard().currentNodeId()))
+                .collect(Collectors.joining(", "))
+        );
 
         final NodesCachesStatsResponse response = client().execute(
             TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
@@ -145,15 +160,18 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             containsInAnyOrder(dataNodesWithFrozenShards)
         );
         assertThat(response.hasFailures(), equalTo(false));
+        logger.info("--> NodesCacheStatsResponse: {}", XContentTestUtils.convertToMap(response));
 
         for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {
             if (nodeCachesStats.getNumRegions() > 0) {
+                logger.info("--> Node {} has writeCount {}", nodeCachesStats.getNode().getName(), nodeCachesStats.getWrites());
                 assertThat(nodeCachesStats.getWrites(), greaterThan(0L));
                 assertThat(nodeCachesStats.getBytesWritten(), greaterThan(0L));
                 assertThat(nodeCachesStats.getReads(), greaterThan(0L));
                 assertThat(nodeCachesStats.getBytesRead(), greaterThan(0L));
                 assertThat(nodeCachesStats.getEvictions(), greaterThan(0L));
             } else {
+                logger.info("--> Node {} has no regions", nodeCachesStats.getNode().getName());
                 assertThat(nodeCachesStats.getWrites(), equalTo(0L));
                 assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
                 assertThat(nodeCachesStats.getReads(), equalTo(0L));
