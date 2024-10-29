@@ -86,11 +86,21 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         runSearchableSnapshotsTest(testCaseBody, sourceOnly, randomIntBetween(1, 500), null);
     }
 
-    private void runSearchableSnapshotsTest(
+    protected void runSearchableSnapshotsTest(
         final SearchableSnapshotsTestCaseBody testCaseBody,
         final boolean sourceOnly,
         final int numDocs,
         @Nullable Settings indexSettings
+    ) throws Exception {
+        runSearchableSnapshotsTest(testCaseBody, sourceOnly, numDocs, indexSettings, true);
+    }
+
+    protected void runSearchableSnapshotsTest(
+        final SearchableSnapshotsTestCaseBody testCaseBody,
+        final boolean sourceOnly,
+        final int numDocs,
+        @Nullable Settings indexSettings,
+        final boolean runCleanup
     ) throws Exception {
         final String repositoryType = writeRepositoryType();
         Settings repositorySettings = writeRepositorySettings();
@@ -211,11 +221,13 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         testCaseBody.runTest(restoredIndexName, numDocs);
 
-        logger.info("deleting mounted index [{}]", indexName);
-        deleteIndex(restoredIndexName);
+        if (runCleanup) {
+            logger.info("deleting mounted index [{}]", indexName);
+            deleteIndex(restoredIndexName);
 
-        logger.info("deleting snapshot [{}]", SNAPSHOT_NAME);
-        deleteSnapshot(SNAPSHOT_NAME, false);
+            logger.info("deleting snapshot [{}]", SNAPSHOT_NAME);
+            deleteSnapshot(SNAPSHOT_NAME, false);
+        }
     }
 
     public void testSearchResults() throws Exception {
@@ -474,7 +486,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         );
     }
 
-    private void clearCache(String restoredIndexName) throws IOException {
+    protected void clearCache(String restoredIndexName) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_searchable_snapshots/cache/clear");
         assertOK(client().performRequest(request));
     }
@@ -695,7 +707,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
      * The body of a test case, which runs after the searchable snapshot has been created and restored.
      */
     @FunctionalInterface
-    interface SearchableSnapshotsTestCaseBody {
+    protected interface SearchableSnapshotsTestCaseBody {
         void runTest(String indexName, int numDocs) throws Exception;
     }
 }

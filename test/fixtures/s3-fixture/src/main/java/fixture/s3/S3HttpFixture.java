@@ -29,7 +29,7 @@ public class S3HttpFixture extends ExternalResource {
     private boolean enabled;
     private final String bucket;
     private final String basePath;
-    protected final String accessKey;
+    protected volatile String accessKey;
 
     public S3HttpFixture() {
         this(true);
@@ -64,6 +64,10 @@ public class S3HttpFixture extends ExternalResource {
                 }
             }
         };
+    }
+
+    public void setAccessKey(String accessKey) {
+        this.accessKey = accessKey;
     }
 
     public String getAddress() {
