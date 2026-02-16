@@ -165,7 +165,7 @@ public class DesiredBalanceMetrics {
     public static final DesiredBalanceMetrics NOOP = new DesiredBalanceMetrics(MeterRegistry.NOOP);
 
     private final MeterRegistry meterRegistry;
-    private final LongCounter shardMovementsCounter;
+    private final LongCounter reconcilerShardMovementsCounter;
     private volatile boolean nodeIsMaster = false;
 
     /**
@@ -194,7 +194,7 @@ public class DesiredBalanceMetrics {
 
     public DesiredBalanceMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
-        this.shardMovementsCounter = meterRegistry.registerLongCounter(
+        this.reconcilerShardMovementsCounter = meterRegistry.registerLongCounter(
             RECONCILER_SHARD_MOVEMENTS_METRIC_NAME,
             "Number of shard movements performed by the desired balance reconciler",
             "unit"
@@ -310,7 +310,7 @@ public class DesiredBalanceMetrics {
      * Record that the desired balance reconciler performed a shard movement for the given reason.
      */
     public void recordReconcilerShardMovement(ShardMovementReason reason) {
-        shardMovementsCounter.incrementBy(1, Map.of(SHARD_MOVEMENT_REASON_ATTRIBUTE, reason.getMetricValue()));
+        reconcilerShardMovementsCounter.incrementBy(1, Map.of(SHARD_MOVEMENT_REASON_ATTRIBUTE, reason.getMetricValue()));
     }
 
     public void registerWriteLoadDeciderMaxLatencyGauge(Supplier<Collection<LongWithAttributes>> maxLatencySupplier) {
