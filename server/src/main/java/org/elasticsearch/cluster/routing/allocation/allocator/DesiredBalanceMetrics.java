@@ -131,7 +131,7 @@ public class DesiredBalanceMetrics {
     public static final String WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE = "es.allocator.deciders.write_load.max_latency_value.current";
 
     /** Counter for shard movements performed by the desired balance reconciler. */
-    public static final String RECONCILER_SHARD_MOVEMENTS_METRIC_NAME = "es.allocator.desired_balance.reconciler.shard_movements.total";
+    public static final String RECONCILER_SHARD_MOVEMENTS_METRIC_NAME = "es_allocator.desired_balance.reconciler.shard_movements.total";
 
     /** Attribute key for the reason a shard movement was performed. */
     public static final String SHARD_MOVEMENT_REASON_ATTRIBUTE = "reason";
