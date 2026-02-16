@@ -134,7 +134,7 @@ public class DesiredBalanceMetrics {
     public static final String RECONCILER_SHARD_MOVEMENTS_METRIC_NAME = "es.allocator.desired_balance.reconciler.shard_movements.total";
 
     /** Attribute key for the reason a shard movement was performed. */
-    public static final String SHARD_MOVEMENT_REASON_ATTRIBUTE = "reason";
+    public static final String SHARD_MOVEMENT_REASON_ATTRIBUTE = "es_reason";
 
     /**
      * Reason why the desired balance reconciler performed a shard movement.
