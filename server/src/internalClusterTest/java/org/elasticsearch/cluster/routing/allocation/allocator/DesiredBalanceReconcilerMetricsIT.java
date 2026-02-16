@@ -197,7 +197,7 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
             "expected at least one 'unassigned' shard movement when assigning the new index",
             measurements.stream()
                 .anyMatch(
-                    m -> DesiredBalanceMetrics.ShardMovementReason.UNASSIGNED.getMetricValue()
+                    m -> DesiredBalanceMetrics.ShardMovementReason.UNASSIGNED.getAttributeValue()
                         .equals(m.attributes().get(DesiredBalanceMetrics.SHARD_MOVEMENT_REASON_ATTRIBUTE))
                 )
         );
@@ -212,7 +212,7 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
             "expected at least one 'rebalance' shard movement when adding a node",
             measurements.stream()
                 .anyMatch(
-                    m -> DesiredBalanceMetrics.ShardMovementReason.REBALANCE.getMetricValue()
+                    m -> DesiredBalanceMetrics.ShardMovementReason.REBALANCE.getAttributeValue()
                         .equals(m.attributes().get(DesiredBalanceMetrics.SHARD_MOVEMENT_REASON_ATTRIBUTE))
                 )
         );
@@ -232,7 +232,7 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
                 "expected at least one 'cannot_remain' shard movement when a node is shutting down",
                 measurements.stream()
                     .anyMatch(
-                        m -> DesiredBalanceMetrics.ShardMovementReason.CANNOT_REMAIN.getMetricValue()
+                        m -> DesiredBalanceMetrics.ShardMovementReason.CANNOT_REMAIN.getAttributeValue()
                             .equals(m.attributes().get(DesiredBalanceMetrics.SHARD_MOVEMENT_REASON_ATTRIBUTE))
                     )
             );

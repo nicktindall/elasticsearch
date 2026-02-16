@@ -134,7 +134,7 @@ public class DesiredBalanceMetrics {
     public static final String RECONCILER_SHARD_MOVEMENTS_METRIC_NAME = "es.allocator.desired_balance.reconciler.shard_movements.total";
 
     /** Attribute key for the reason a shard movement was performed. */
-    public static final String SHARD_MOVEMENT_REASON_ATTRIBUTE = "es_reason";
+    public static final String SHARD_MOVEMENT_REASON_ATTRIBUTE = "es_shard_movement_reason";
 
     /**
      * Reason why the desired balance reconciler performed a shard movement.
@@ -147,17 +147,20 @@ public class DesiredBalanceMetrics {
         /** Shard was relocated as part of rebalancing. */
         REBALANCE("rebalance");
 
-        private final String metricValue;
+        private final String attributeValue;
+        private final Map<String, Object> attributeMap;
 
-        ShardMovementReason(String metricValue) {
-            this.metricValue = metricValue;
+        ShardMovementReason(String attributeValue) {
+            this.attributeValue = attributeValue;
+            this.attributeMap = Map.of(SHARD_MOVEMENT_REASON_ATTRIBUTE, attributeValue);
         }
 
-        /**
-         * Value used for the metric attribute. Stable for telemetry/APM.
-         */
-        public String getMetricValue() {
-            return metricValue;
+        public String getAttributeValue() {
+            return attributeValue;
+        }
+
+        public Map<String, Object> getAttributeMap() {
+            return attributeMap;
         }
     }
 
@@ -310,7 +313,7 @@ public class DesiredBalanceMetrics {
      * Record that the desired balance reconciler performed a shard movement for the given reason.
      */
     public void recordReconcilerShardMovement(ShardMovementReason reason) {
-        reconcilerShardMovementsCounter.incrementBy(1, Map.of(SHARD_MOVEMENT_REASON_ATTRIBUTE, reason.getMetricValue()));
+        reconcilerShardMovementsCounter.incrementBy(1, reason.getAttributeMap());
     }
 
     public void registerWriteLoadDeciderMaxLatencyGauge(Supplier<Collection<LongWithAttributes>> maxLatencySupplier) {
