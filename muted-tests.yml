@@ -458,6 +458,9 @@ tests:
 - class: org.elasticsearch.index.IndexSettingsTests
   method: testSyntheticIdCorrectSettings
   issue: https://github.com/elastic/elasticsearch/issues/142507
+- class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
+  method: testRecursiveDoubleStarAllFiles
+  issue: https://github.com/elastic/elasticsearch/issues/142576
 
 # Examples:
 #
