@@ -181,10 +181,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             assert explain
                 : "primary should only be null here if we are in explain mode, so we didn't "
                     + "exit early when canBeAllocatedToAtLeastOneNode returned a decision that doesn't allow assignment";
-            return AllocateUnassignedDecision.no(
-                UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
-                result.nodes()
-            );
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
         assert primaryShard.currentNodeId() != null;
         final DiscoveryNode primaryNode = allocation.nodes().get(primaryShard.currentNodeId());
