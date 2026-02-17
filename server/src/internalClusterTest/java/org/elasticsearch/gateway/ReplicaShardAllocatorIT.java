@@ -463,8 +463,13 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
 
         // Start a node with the old replica's data and mark it as NOT_PREFERRED
         nodeWithReplica = internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
-        String replicaNodeId = internalCluster().getInstance(ClusterService.class, nodeWithReplica).localNode().getId();
+        String replicaNodeId = getNodeId(nodeWithReplica);
         NOT_PREFERRED_NODES.add(replicaNodeId);
+        if (randomBoolean()) {
+            // Sometimes start another node, which will have no state and also be NOT_PREFERRED
+            String surplusNode = internalCluster().startDataOnlyNode();
+            NOT_PREFERRED_NODES.add(getNodeId(surplusNode));
+        }
 
         // Re-enable allocation — the replica should be allocated to the NOT_PREFERRED node via noop recovery
         updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
