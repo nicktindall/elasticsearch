@@ -366,6 +366,33 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     }
 
     /**
+     * Tests that we prefer to throttle rather than allocate to a not-preferred node when both
+     * options exist (YES &gt; THROTTLE &gt; NOT_PREFERRED &gt; NO).
+     */
+    public void testThrottleBeforeNotPreferredNode() {
+        AllocationDecider throttleForNode1NotPreferredForNode2 = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return node.nodeId().equals(node1.getId()) ? Decision.THROTTLE : Decision.NOT_PREFERRED;
+            }
+        };
+        AllocationDeciders deciders = new AllocationDeciders(List.of(throttleForNode1NotPreferredForNode2));
+        final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, CLUSTER_RECOVERED, "allocId1", "allocId2");
+        testAllocator.addData(node1, "allocId1", randomBoolean());
+        testAllocator.addData(node2, "allocId2", randomBoolean());
+        allocateAllUnassigned(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
+        assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
+        assertThat(
+            allocation.routingNodes().unassigned().ignored().get(0).unassignedInfo().lastAllocationStatus(),
+            equalTo(AllocationStatus.DECIDERS_THROTTLED)
+        );
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(0));
+        assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
+    }
+
+    /**
      * Tests that when there is a node to be allocated to, but it the decider said "no", we still
      * force the allocation to it.
      */
