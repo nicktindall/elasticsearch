@@ -188,12 +188,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         Collection<NodeGatewayStartedShards> ineligibleShards;
         if (nodesToAllocate != null) {
             final Set<DiscoveryNode> discoNodes = new HashSet<>();
-            Stream.of(
-                nodesToAllocate.yesNodeShards,
-                nodesToAllocate.throttleNodeShards,
-                nodesToAllocate.notPreferredNodeShards,
-                nodesToAllocate.noNodeShards
-            ).flatMap(Collection::stream).forEach(dnode -> {
+            nodesToAllocate.stream().forEach(dnode -> {
                 discoNodes.add(dnode.nodeShardState.getNode());
                 nodeResults.add(
                     new NodeAllocationResult(
@@ -376,7 +371,14 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         List<DecidedNode> throttleNodeShards,
         List<DecidedNode> notPreferredNodeShards,
         List<DecidedNode> noNodeShards
-    ) {}
+    ) {
+        /**
+         * Stream all decided nodes in order: YES, THROTTLE, NOT_PREFERRED, NO.
+         */
+        Stream<DecidedNode> stream() {
+            return Stream.of(yesNodeShards, throttleNodeShards, notPreferredNodeShards, noNodeShards).flatMap(Collection::stream);
+        }
+    }
 
     /**
      * Result of choosing a node from allocation candidates, possibly after trying force allocation.
