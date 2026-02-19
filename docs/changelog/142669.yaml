@@ -1,0 +1,5 @@
+area: Allocation
+issues: []
+pr: 142669
+summary: Prefer throttle over not preferred when allocating unassigned primaries
+type: enhancement
