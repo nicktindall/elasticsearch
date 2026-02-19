@@ -324,8 +324,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     }
 
     /**
-     * Split the list of node shard states into groups by allocation decider decision, in the order
-     * YES &gt; THROTTLE &gt; NOT_PREFERRED &gt; NO (see {@link Decision.Type#compareToBetweenNodes}).
+     * Split the list of node shard states into groups by allocation decider decision.
      */
     private static NodesToAllocate buildNodesToAllocate(
         RoutingAllocation allocation,
