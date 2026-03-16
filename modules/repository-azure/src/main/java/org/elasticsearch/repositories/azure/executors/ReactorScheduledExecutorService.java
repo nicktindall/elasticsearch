@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure.executors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -26,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -38,6 +40,7 @@ import static org.elasticsearch.core.Strings.format;
 public class ReactorScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService {
     private final ThreadPool threadPool;
     private final ExecutorService delegate;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private static final Logger logger = LogManager.getLogger(ReactorScheduledExecutorService.class);
 
     public ReactorScheduledExecutorService(ThreadPool threadPool, String executorName) {
@@ -47,26 +50,26 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
 
     @Override
     public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
-        Scheduler.ScheduledCancellable schedule = threadPool.schedule(() -> {
+        Scheduler.ScheduledCancellable schedule = threadPool.schedule(wrap(() -> {
             try {
                 callable.call();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }, new TimeValue(delay, unit), delegate);
+        }), new TimeValue(delay, unit), delegate);
 
         return new ReactorFuture<>(schedule);
     }
 
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        Scheduler.ScheduledCancellable schedule = threadPool.schedule(command, new TimeValue(delay, unit), delegate);
+        Scheduler.ScheduledCancellable schedule = threadPool.schedule(wrap(command), new TimeValue(delay, unit), delegate);
         return new ReactorFuture<>(schedule);
     }
 
     @Override
     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
 
-        return threadPool.scheduler().scheduleAtFixedRate(() -> {
+        return threadPool.scheduler().scheduleAtFixedRate(wrap(() -> {
             try {
                 delegate.execute(command);
             } catch (EsRejectedExecutionException e) {
@@ -79,14 +82,37 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
                     throw e;
                 }
             }
-        }, initialDelay, period, unit);
+        }), initialDelay, period, unit);
     }
 
     @Override
     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
-        Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedDelay(command, new TimeValue(delay, unit), delegate);
+        Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedDelay(wrap(command), new TimeValue(delay, unit), delegate);
 
         return new ReactorFuture<>(cancellable);
+    }
+
+    /**
+     * Wraps a scheduled task so that if it fires after this ExecutorService is closed, it will not execute
+     *
+     * @param runnable The task to wrap
+     * @return A task that will throw an {@link AlreadyClosedException} if it is executed after this ExecutorService is closed
+     */
+    private Runnable wrap(Runnable runnable) {
+        return () -> {
+            if (closed.get()) {
+                throw new AlreadyClosedException("Client provider is closed");
+            }
+            runnable.run();
+        };
+    }
+
+    /**
+     * Need to override the default {@link ExecutorService#close()} because this is not a real {@link ExecutorService}
+     */
+    @Override
+    public void close() {
+        closed.set(true);
     }
 
     @Override
