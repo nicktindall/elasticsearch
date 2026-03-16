@@ -86,7 +86,10 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
     public void testWriteLoadDefinedRelocationOrdering() {
         final long queueLatencyThresholdMillis = randomLongBetween(3000, 7000);
         final int utilizationThresholdPercent = randomIntBetween(80, 99);
-        final Settings settings = createClusterInfoWriteLoadForecasterTestSettings(queueLatencyThresholdMillis, utilizationThresholdPercent);
+        final Settings settings = createClusterInfoWriteLoadForecasterTestSettings(
+            queueLatencyThresholdMillis,
+            utilizationThresholdPercent
+        );
         internalCluster().startMasterOnlyNode(settings);
 
         int numberOfNodes = randomIntBetween(5, 10);
@@ -134,27 +137,23 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         for (String nodeName : nodeNames) {
             List<ShardStats> shardStats = new ArrayList<>();
             for (IndexMetadata indexMetadata : nodeIdsToIndexMetadata.getOrDefault(getNodeId(nodeName), List.of())) {
-                shardStats.add(createShardStats(
-                    indexMetadata,
-                    0,
-                    shardDiskUsage,
-                    randomDoubleBetween(shardWriteLoadBase, shardWriteLoadBase + 0.05, true),
-                    getNodeId(nodeName)
-                ));
+                shardStats.add(
+                    createShardStats(
+                        indexMetadata,
+                        0,
+                        shardDiskUsage,
+                        randomDoubleBetween(shardWriteLoadBase, shardWriteLoadBase + 0.05, true),
+                        getNodeId(nodeName)
+                    )
+                );
             }
-            mockShardStatsForNode(
-                clusterService().state(),
-                nodeName,
-                shardStats
-            );
+            mockShardStatsForNode(clusterService().state(), nodeName, shardStats);
             shardDiskUsage = Math.max(0, shardDiskUsage - randomLongBetween(100_000_000, 400_000_000));
             shardWriteLoadBase += randomDoubleBetween(0.01, 0.05, true);
         }
 
         // turn off shard balance factor (needed to spread shards evenly)
-        updateClusterSettings(Settings.builder()
-            .put(settings)
-            .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.0f));
+        updateClusterSettings(Settings.builder().put(settings).put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.0f));
 
         safeGet(
             client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
@@ -185,14 +184,11 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                 "hot spot detected message",
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.DEBUG,
-                Strings.format(
-                    """
-                        Nodes [%s] are hot-spotting, of * total ingest nodes. Reroute for hot-spotting has never previously been called. \
-                        Previously hot-spotting nodes are [0 nodes]. The write thread pool queue latency threshold is [*] and the \
-                        utilization threshold is [*]. Triggering reroute.
-                        """,
-                    getNodeId(hotNode) + "/" + hotNode
-                )
+                Strings.format("""
+                    Nodes [%s] are hot-spotting, of * total ingest nodes. Reroute for hot-spotting has never previously been called. \
+                    Previously hot-spotting nodes are [0 nodes]. The write thread pool queue latency threshold is [*] and the \
+                    utilization threshold is [*]. Triggering reroute.
+                    """, getNodeId(hotNode) + "/" + hotNode)
             )
         );
 
@@ -242,17 +238,10 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
     }
 
-    public void mockShardStatsForNode(
-        ClusterState clusterState,
-        String nodeName,
-        List<ShardStats> shards
-    ) {
+    public void mockShardStatsForNode(ClusterState clusterState, String nodeName, List<ShardStats> shards) {
         MockTransportService.getInstance(nodeName)
             .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    nodeName
-                );
+                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, nodeName);
                 channel.sendResponse(instance.new NodeResponse(getNodeId(nodeName), shards.size(), shards, List.of()));
             });
     }
@@ -322,10 +311,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 utilizationThresholdPercent + "%"
             )
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(),
-                90 + "%"
-            )
+            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(), 90 + "%")
             .put(BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
             .put(WriteLoadForecasterPlugin.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), true)
             .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING.getKey(), "PEAK")
