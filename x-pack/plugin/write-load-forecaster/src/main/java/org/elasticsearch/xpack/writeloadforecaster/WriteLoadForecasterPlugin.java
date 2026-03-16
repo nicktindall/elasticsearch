@@ -41,6 +41,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
     public static final Setting<Boolean> CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING = Setting.boolSetting(
         "cluster_info_write_load_forecaster.enabled",
         false,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
