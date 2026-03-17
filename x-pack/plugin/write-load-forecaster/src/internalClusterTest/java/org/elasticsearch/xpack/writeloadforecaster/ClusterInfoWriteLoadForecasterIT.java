@@ -99,7 +99,8 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         final int utilizationThresholdPercent = randomIntBetween(80, 99);
         final Settings settings = createClusterInfoWriteLoadForecasterTestSettings(
             queueLatencyThresholdMillis,
-            utilizationThresholdPercent);
+            utilizationThresholdPercent
+        );
         internalCluster().startMasterOnlyNode(settings);
 
         // create a bunch of nodes, and three times the number of indices
@@ -119,7 +120,6 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
             client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
         );
 
-
         // assert that all nodes have three shards
         ClusterState state = clusterService().state();
         for (RoutingNode routingNode : state.getRoutingNodes()) {
@@ -127,9 +127,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         }
 
         // turn off shard balance factor (was needed to spread shards evenly)
-        updateClusterSettings(Settings.builder()
-            .put(settings)
-            .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.0f));
+        updateClusterSettings(Settings.builder().put(settings).put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.0f));
 
         // create map of node ids -> indices
         Map<String, List<IndexMetadata>> nodeIdsToIndexMetadata = new HashMap<>();
@@ -194,7 +192,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                     Nodes [%s] are hot-spotting, of * total ingest nodes. Reroute for hot-spotting has never previously been called. \
                     Previously hot-spotting nodes are [0 nodes]. The write thread pool queue latency threshold is [*] and the \
                     utilization threshold is [*]. Triggering reroute.
-                    """, getNodeId(hotNode) + "/" + hotNode)
+                    """, hotNodeId + "/" + hotNode)
             )
         );
 
@@ -254,23 +252,22 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                     request,
                     new TestTransportChannel(new ChannelActionListener<>(channel).delegateFailure((l, response) -> {
                         NodeUsageStatsForThreadPoolsAction.NodeResponse r = (NodeUsageStatsForThreadPoolsAction.NodeResponse) response;
-                            Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> usageStats;
-                            l.onResponse(
-                                new NodeUsageStatsForThreadPoolsAction.NodeResponse(
-                                    r.getNode(),
-                                    new NodeUsageStatsForThreadPools(
-                                        r.getNodeUsageStatsForThreadPools().nodeId(),
-                                        simulateWriteThreadPool(
-                                            r.getNodeUsageStatsForThreadPools().threadPoolUsageStatsMap(),
-                                            queueLatencyThresholdMillis,
-                                            utilizationThreshold,
-                                            hotspot
-                                        )
+                        Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> usageStats;
+                        l.onResponse(
+                            new NodeUsageStatsForThreadPoolsAction.NodeResponse(
+                                r.getNode(),
+                                new NodeUsageStatsForThreadPools(
+                                    r.getNodeUsageStatsForThreadPools().nodeId(),
+                                    simulateWriteThreadPool(
+                                        r.getNodeUsageStatsForThreadPools().threadPoolUsageStatsMap(),
+                                        queueLatencyThresholdMillis,
+                                        utilizationThreshold,
+                                        hotspot
                                     )
                                 )
-                            );
-                        }
-                    )),
+                            )
+                        );
+                    })),
                     task
                 );
             });
@@ -294,11 +291,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         return stringThreadPoolUsageStatsMap.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
             NodeUsageStatsForThreadPools.ThreadPoolUsageStats originalStats = e.getValue();
             if (e.getKey().equals(ThreadPool.Names.WRITE)) {
-                return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
-                    originalStats.totalThreadPoolThreads(),
-                    utilization,
-                    latency
-                );
+                return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(originalStats.totalThreadPoolThreads(), utilization, latency);
             }
             return originalStats;
         }));
