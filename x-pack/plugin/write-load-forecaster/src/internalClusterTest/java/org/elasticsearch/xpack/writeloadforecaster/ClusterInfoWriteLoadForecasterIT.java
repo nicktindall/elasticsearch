@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -65,6 +66,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -107,7 +109,10 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         int numberOfNodes = randomIntBetween(5, 10);
         int numberOfIndices = 3 * numberOfNodes;
 
-        List<String> nodeNames = internalCluster().startNodes(numberOfNodes, settings);
+        List<String> nodeNames = internalCluster().startNodes(
+            numberOfNodes,
+            Settings.builder().put(settings).put(onlyRole(DiscoveryNodeRole.INDEX_ROLE)).build()
+        );
 
         Set<String> indexNames = new HashSet<>(numberOfIndices);
         for (int i = 0; i < numberOfIndices; i++) {
