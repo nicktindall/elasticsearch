@@ -18,12 +18,15 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -60,6 +63,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -79,6 +83,15 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         );
     }
 
+    /**
+     * Test that the ClusterInfoWriteLoadForecaster is able to correctly order shard placement in a cluster,
+     * so that shard movements in the moveShards phase of the balancer works to move shards from the heaviest
+     * node (in shard write load) to the lightest. Balancing is turned off.
+     *
+     * This test sets up a collection of nodes, then mocks out the IndexStats transport action to assign them
+     * write loads in some ordering from light to heavy. Then, once the shards have been spread out so there
+     * are three per node, it hotspots the heaviest node and checks that the shard is moved to the lightest node.
+     */
     @TestLogging(
         value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:TRACE",
         reason = "so we can see the monitor hotspot message"
@@ -92,6 +105,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         );
         internalCluster().startMasterOnlyNode(settings);
 
+        // create a bunch of nodes, and three times the number of indices
         int numberOfNodes = randomIntBetween(5, 10);
         int numberOfIndices = 3 * numberOfNodes;
 
@@ -108,32 +122,34 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
             client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
         );
 
-        ClusterHealthResponse response = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
-            .setWaitForNoRelocatingShards(true)
-            .setWaitForNoInitializingShards(true)
-            .setWaitForGreenStatus()
-            .get();
-        assertThat(response.isTimedOut(), equalTo(false));
 
-        // check that all nodes have three shards
+        // assert that all nodes have three shards
         ClusterState state = clusterService().state();
         for (RoutingNode routingNode : state.getRoutingNodes()) {
             assertThat(routingNode.numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(3));
         }
 
-        // inrease in shard write load, decrease in disk usage
-        // ensure that the max shard write load + the mininum will always be less than 0.9
+        // turn off shard balance factor (was needed to spread shards evenly)
+        updateClusterSettings(Settings.builder()
+            .put(settings)
+            .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.0f));
+
+        // create map of node ids -> indices
         Map<String, List<IndexMetadata>> nodeIdsToIndexMetadata = new HashMap<>();
+        RoutingTable routingTable = clusterService().state().routingTable(ProjectId.DEFAULT);
         for (String indexName : indexNames) {
             nodeIdsToIndexMetadata.computeIfAbsent(
-                clusterService().state().routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard().currentNodeId(),
+                routingTable.index(indexName).shard(0).primaryShard().currentNodeId(),
                 (String nodeId) -> new ArrayList<IndexMetadata>()
             ).add(clusterService().state().metadata().getProject().index(indexName));
         }
 
-        Collections.shuffle(nodeNames);
+        // order shards with an inrease in shard write load, and decrease in disk usage,
+        // ensuring that the max shard write load + the mininum will always be less than 0.9 for any node
+        // (allocation utilization thresholds will block this)
+        Collections.shuffle(nodeNames, new Random(randomLong()));
         double shardWriteLoadBase = randomDoubleBetween(0.01, 0.05, true);
-        long shardDiskUsage = 10 * randomLongBetween(100_000_000, 400_000_000);
+        long shardDiskUsage = 10 * 400_000_000;
         for (String nodeName : nodeNames) {
             List<ShardStats> shardStats = new ArrayList<>();
             for (IndexMetadata indexMetadata : nodeIdsToIndexMetadata.getOrDefault(getNodeId(nodeName), List.of())) {
@@ -152,29 +168,22 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
             shardWriteLoadBase += randomDoubleBetween(0.01, 0.05, true);
         }
 
-        // turn off shard balance factor (needed to spread shards evenly)
-        updateClusterSettings(Settings.builder().put(settings).put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.0f));
+        // ensure that the write loads get propagated before the hotspot
+        ClusterInfo refreshedClusterInfo = refreshClusterInfo();
 
-        safeGet(
-            client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
-        );
-
-        response = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
-            .setWaitForNoRelocatingShards(true)
-            .setWaitForNoInitializingShards(true)
-            .setWaitForGreenStatus()
-            .get();
-        assertThat(response.isTimedOut(), equalTo(false));
-
-        // nodeNames is arranged from low to high in shard write load
         // simulate a hotspot on one of them, and see a shard move to the lowest one
-        String hotNode = nodeNames.get(nodeNames.size() - 1);
-        String hotNodeId = getNodeId(hotNode);
-        simulateHotSpottingOnNode(hotNode, queueLatencyThresholdMillis, utilizationThresholdPercent + 1 / 100.0f);
+        final String hotNode = nodeNames.get(nodeNames.size() - 1);
+        final String hotNodeId = getNodeId(hotNode);
+        final String coldNode = nodeNames.get(0);
+        final String coldNodeId = getNodeId(coldNode);
 
-        String coldNode = nodeNames.get(0);
-        String coldNodeId = getNodeId(coldNode);
-        System.out.println("");
+        for (String nodeName : nodeNames) {
+            if (nodeName == hotNode) {
+                simulateWriteLoadThreadPool(hotNode, queueLatencyThresholdMillis, utilizationThresholdPercent + 1 / 100.0f, true);
+            } else {
+                simulateWriteLoadThreadPool(hotNode, queueLatencyThresholdMillis, utilizationThresholdPercent + 1 / 100.0f, false);
+            }
+        }
 
         // check hotspot is detected
         MockLog.awaitLogger(
@@ -192,17 +201,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
             )
         );
 
-        safeGet(
-            client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
-        );
-
-        response = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
-            .setWaitForNoRelocatingShards(true)
-            .setWaitForNoInitializingShards(true)
-            .setWaitForGreenStatus()
-            .get();
-        assertThat(response.isTimedOut(), equalTo(false));
-
+        // wait for the hotspot node to have fewer than its initial 3, and the lightest write load node to have more than 3
         awaitClusterState(clusterState -> {
             var routingNodes = clusterState.getRoutingNodes();
             int hotCount = routingNodes.node(hotNodeId).numberOfShardsWithState(ShardRoutingState.STARTED);
@@ -246,59 +245,70 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
             });
     }
 
-    private void simulateHotSpottingOnNode(String nodeName, long queueLatencyThresholdMillis, float utilizationThreshold) {
+    private void simulateWriteLoadThreadPool(String nodeName, long queueLatencyThresholdMillis, float utilizationThreshold, boolean hotspot) {
         MockTransportService.getInstance(nodeName)
             .addRequestHandlingBehavior(TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]", (handler, request, channel, task) -> {
                 handler.messageReceived(
                     request,
                     new TestTransportChannel(new ChannelActionListener<>(channel).delegateFailure((l, response) -> {
                         NodeUsageStatsForThreadPoolsAction.NodeResponse r = (NodeUsageStatsForThreadPoolsAction.NodeResponse) response;
-                        l.onResponse(
-                            new NodeUsageStatsForThreadPoolsAction.NodeResponse(
-                                r.getNode(),
-                                new NodeUsageStatsForThreadPools(
-                                    r.getNodeUsageStatsForThreadPools().nodeId(),
-                                    simulateWriteThreadPoolHotspotting(
-                                        r.getNodeUsageStatsForThreadPools().threadPoolUsageStatsMap(),
-                                        queueLatencyThresholdMillis,
-                                        utilizationThreshold
+                            Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> usageStats;
+                            l.onResponse(
+                                new NodeUsageStatsForThreadPoolsAction.NodeResponse(
+                                    r.getNode(),
+                                    new NodeUsageStatsForThreadPools(
+                                        r.getNodeUsageStatsForThreadPools().nodeId(),
+                                        simulateWriteThreadPool(
+                                            r.getNodeUsageStatsForThreadPools().threadPoolUsageStatsMap(),
+                                            queueLatencyThresholdMillis,
+                                            utilizationThreshold,
+                                            hotspot
+                                        )
                                     )
                                 )
-                            )
-                        );
-                    })),
+                            );
+                        }
+                    )),
                     task
                 );
             });
     }
 
-    private Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> simulateWriteThreadPoolHotspotting(
+    private Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> simulateWriteThreadPool(
         Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> stringThreadPoolUsageStatsMap,
         long queueLatencyThresholdMillis,
-        float utilizationThreshold
+        float utilizationThreshold,
+        boolean hotspot
     ) {
+        final float utilization;
+        final long latency;
+        if (hotspot) {
+            utilization = randomFloatBetween(utilizationThreshold, 1.0f, true);
+            latency = randomLongBetween(queueLatencyThresholdMillis * 2, queueLatencyThresholdMillis * 3);
+        } else {
+            utilization = randomFloatBetween(utilizationThreshold, 0.1f, true);
+            latency = randomLongBetween(0, queueLatencyThresholdMillis - 1);
+        }
         return stringThreadPoolUsageStatsMap.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
             NodeUsageStatsForThreadPools.ThreadPoolUsageStats originalStats = e.getValue();
             if (e.getKey().equals(ThreadPool.Names.WRITE)) {
                 return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
                     originalStats.totalThreadPoolThreads(),
-                    randomFloatBetween(utilizationThreshold, 1.0f, true),
-                    randomLongBetween(queueLatencyThresholdMillis * 2, queueLatencyThresholdMillis * 3)
+                    utilization,
+                    latency
                 );
             }
             return originalStats;
         }));
-
     }
 
     public Settings createClusterInfoWriteLoadForecasterTestSettings(long queueLatencyThresholdMillis, int utilizationThresholdPercent) {
         final Settings settings = Settings.builder()
-            // turn off all other balance settings and deciders
+            // turn off all other balance settings and deciders (except shard balance, for now)
             .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
             .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
             .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
-            .put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 1.0f)
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
