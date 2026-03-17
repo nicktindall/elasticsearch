@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.writeloadforecaster;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -19,7 +18,6 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -101,8 +99,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         final int utilizationThresholdPercent = randomIntBetween(80, 99);
         final Settings settings = createClusterInfoWriteLoadForecasterTestSettings(
             queueLatencyThresholdMillis,
-            utilizationThresholdPercent
-        );
+            utilizationThresholdPercent);
         internalCluster().startMasterOnlyNode(settings);
 
         // create a bunch of nodes, and three times the number of indices
@@ -245,7 +242,12 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
             });
     }
 
-    private void simulateWriteLoadThreadPool(String nodeName, long queueLatencyThresholdMillis, float utilizationThreshold, boolean hotspot) {
+    private void simulateWriteLoadThreadPool(
+        String nodeName,
+        long queueLatencyThresholdMillis,
+        float utilizationThreshold,
+        boolean hotspot
+    ) {
         MockTransportService.getInstance(nodeName)
             .addRequestHandlingBehavior(TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]", (handler, request, channel, task) -> {
                 handler.messageReceived(
