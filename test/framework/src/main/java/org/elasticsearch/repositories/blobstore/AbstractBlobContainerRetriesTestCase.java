@@ -51,6 +51,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomF
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.test.NeverMatcher.never;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -400,7 +401,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         int meaningfulProgressRetries = Math.toIntExact(
             retryContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize.get()).count()
         );
-        assertEquals(Math.min(10, maxRetries + meaningfulProgressRetries), exception.getSuppressed().length);
+
+        // Just because the server sent a "meaningful-progress" sized chunk doesn't mean the client read all of it
+        final int maximumSuppressed = Math.min(10, maxRetries + meaningfulProgressRetries);
+        final int minimumSuppressed = Math.min(10, maxRetries);
+        assertThat(exception.getSuppressed().length, allOf(greaterThanOrEqualTo(minimumSuppressed), lessThanOrEqualTo(maximumSuppressed)));
     }
 
     private long extractMeaningfulProgressSize(InputStream stream) {
