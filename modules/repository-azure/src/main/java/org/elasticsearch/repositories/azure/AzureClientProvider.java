@@ -110,12 +110,13 @@ class AzureClientProvider extends AbstractLifecycleComponent {
      */
     private static final int SHUTDOWN_TIMEOUT_SECONDS = 15;
 
+    private final ThreadPool threadPool;
+    private final String reactorExecutorName;
     private final EventLoopGroup eventLoopGroup;
     private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
     private final LoopResources nioLoopResources;
     private final int multipartUploadMaxConcurrency;
-    private final ReactorScheduledExecutorService reactorScheduledExecutorService;
     private volatile boolean closed = false;
 
     AzureClientProvider(
@@ -126,6 +127,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         ByteBufAllocator byteBufAllocator,
         int multipartUploadMaxConcurrency
     ) {
+        this.threadPool = threadPool;
+        this.reactorExecutorName = reactorExecutorName;
         this.eventLoopGroup = eventLoopGroup;
         this.connectionProvider = connectionProvider;
         this.byteBufAllocator = byteBufAllocator;
@@ -134,7 +137,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         // to avoid creating multiple connection pools.
         this.nioLoopResources = useNative -> eventLoopGroup;
         this.multipartUploadMaxConcurrency = multipartUploadMaxConcurrency;
-        this.reactorScheduledExecutorService = new ReactorScheduledExecutorService(threadPool, reactorExecutorName);
     }
 
     static int eventLoopThreadsFromSettings(Settings settings) {
@@ -231,27 +233,29 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
+        ReactorScheduledExecutorService executorService = new ReactorScheduledExecutorService(threadPool, reactorExecutorName);
+
         // The only way to configure the schedulers used by the SDK is to inject a new global factory. This is a bit ugly...
         // See https://github.com/Azure/azure-sdk-for-java/issues/17272 for a feature request to avoid this need.
         Schedulers.setFactory(new Schedulers.Factory() {
             @Override
             public Scheduler newParallel(int parallelism, ThreadFactory threadFactory) {
-                return Schedulers.fromExecutor(reactorScheduledExecutorService);
+                return Schedulers.fromExecutor(executorService);
             }
 
             @Override
             public Scheduler newElastic(int ttlSeconds, ThreadFactory threadFactory) {
-                return Schedulers.fromExecutor(reactorScheduledExecutorService);
+                return Schedulers.fromExecutor(executorService);
             }
 
             @Override
             public Scheduler newBoundedElastic(int threadCap, int queuedTaskCap, ThreadFactory threadFactory, int ttlSeconds) {
-                return Schedulers.fromExecutor(reactorScheduledExecutorService);
+                return Schedulers.fromExecutor(executorService);
             }
 
             @Override
             public Scheduler newSingle(ThreadFactory threadFactory) {
-                return Schedulers.fromExecutor(reactorScheduledExecutorService);
+                return Schedulers.fromExecutor(executorService);
             }
         });
     }
@@ -266,8 +270,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         } catch (Exception e) {
             logger.warn("Error disposing Azure connection provider, continuing shutdown", e);
         }
-        // Stop any outstanding scheduled tasks from executing
-        reactorScheduledExecutorService.close();
         try {
             // Now safe to shut down the event loop; use bounded wait so node shutdown does not hang
             eventLoopGroup.shutdownGracefully().await(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);

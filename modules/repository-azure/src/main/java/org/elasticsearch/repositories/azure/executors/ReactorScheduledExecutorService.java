@@ -26,7 +26,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -39,7 +38,6 @@ import static org.elasticsearch.core.Strings.format;
 public class ReactorScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService {
     private final ThreadPool threadPool;
     private final ExecutorService delegate;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
     private static final Logger logger = LogManager.getLogger(ReactorScheduledExecutorService.class);
 
     public ReactorScheduledExecutorService(ThreadPool threadPool, String executorName) {
@@ -67,6 +65,7 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
 
     @Override
     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+
         return threadPool.scheduler().scheduleAtFixedRate(() -> {
             try {
                 delegate.execute(command);
@@ -88,14 +87,6 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
         Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedDelay(command, new TimeValue(delay, unit), delegate);
 
         return new ReactorFuture<>(cancellable);
-    }
-
-    /**
-     * Need to override the default {@link ExecutorService#close()} because this is not a real {@link ExecutorService}
-     */
-    @Override
-    public void close() {
-        closed.set(true);
     }
 
     @Override
