@@ -62,8 +62,8 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         Settings settings,
         ClusterSettings clusterSettings
     ) {
-        final boolean cluster_info_write_load_forecaster = CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.get(settings);
-        if (cluster_info_write_load_forecaster) {
+        final boolean clusterInfoWriteLoadForecasterEnabled = CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.get(settings);
+        if (clusterInfoWriteLoadForecasterEnabled) {
             return List.of(new ClusterInfoWriteLoadForecaster());
         } else {
             return List.of(new LicensedWriteLoadForecaster(this::hasValidLicense, threadPool, settings, clusterSettings));
