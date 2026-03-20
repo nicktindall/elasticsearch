@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.writeloadforecaster;
 
 import org.apache.logging.log4j.Level;
+
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -121,9 +121,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
             createIndex(indexName, 1, 0);
         }
 
-        safeGet(
-            client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
-        );
+        ClusterRerouteUtils.reroute(client());
 
         // assert that all nodes have three shards
         ClusterState state = clusterService().state();
