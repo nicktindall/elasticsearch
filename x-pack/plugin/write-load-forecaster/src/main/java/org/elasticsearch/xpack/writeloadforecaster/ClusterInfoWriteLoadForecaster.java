@@ -13,22 +13,26 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
 
 import java.util.Map;
 import java.util.OptionalDouble;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 /**
  * A write-load forecaster that takes its forecasts from the most recent {@link ClusterInfo} object.
  */
-public class ClusterInfoWriteLoadForecaster implements WriteLoadForecaster {
+public class ClusterInfoWriteLoadForecaster extends AbstractLicenseCheckingWriteLoadForecaster {
 
     private static final Logger logger = LogManager.getLogger(ClusterInfoWriteLoadForecaster.class);
 
     private volatile Map<Index, Double> indexWriteLoadForecasts = Map.of();
+
+    public ClusterInfoWriteLoadForecaster(BooleanSupplier licenseSupplier) {
+        super(licenseSupplier);
+    }
 
     @Inject
     public void setClusterInfoService(ClusterInfoService clusterInfoService) {
@@ -54,12 +58,11 @@ public class ClusterInfoWriteLoadForecaster implements WriteLoadForecaster {
 
     @Override
     public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
+        if (hasValidLicense == false) {
+            return OptionalDouble.empty();
+        }
+
         Double writeLoad = indexWriteLoadForecasts.get(indexMetadata.getIndex());
         return writeLoad == null ? OptionalDouble.empty() : OptionalDouble.of(writeLoad);
-    }
-
-    @Override
-    public void refreshLicense() {
-        // No-op, serverless only
     }
 }

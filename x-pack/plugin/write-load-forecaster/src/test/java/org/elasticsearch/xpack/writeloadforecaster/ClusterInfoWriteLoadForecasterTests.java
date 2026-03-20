@@ -40,7 +40,7 @@ public class ClusterInfoWriteLoadForecasterTests extends ESTestCase {
             )
             .build();
 
-        ClusterInfoWriteLoadForecaster writeLoadForecaster = new ClusterInfoWriteLoadForecaster();
+        ClusterInfoWriteLoadForecaster writeLoadForecaster = new ClusterInfoWriteLoadForecaster(() -> true);
         AtomicReference<Consumer<ClusterInfo>> onNewClusterInfoCallback = new AtomicReference<>();
         writeLoadForecaster.setClusterInfoService(new ClusterInfoService() {
             @Override
@@ -58,6 +58,10 @@ public class ClusterInfoWriteLoadForecasterTests extends ESTestCase {
 
         onNewClusterInfoCallback.get().accept(clusterInfo);
 
+        // there is no value before the license refresh
+        assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata1).isPresent(), false);
+
+        writeLoadForecaster.refreshLicense();
         assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata1).getAsDouble(), 0.0, 0.00001);
         assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata2).getAsDouble(), 0.5, 0.00001);
         assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata3).getAsDouble(), 0.6, 0.00001);

@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -72,7 +71,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
         final AtomicInteger licenseCheckCount = new AtomicInteger();
-        final WriteLoadForecaster writeLoadForecaster = makeLicensedWriteLoadForecaster(() -> {
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> {
             licenseCheckCount.incrementAndGet();
             return hasValidLicense.get();
         }, threadPool, maxIndexAge);
@@ -145,7 +144,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
         metadataBuilder.put(dataStream);
 
-        final WriteLoadForecaster writeLoadForecaster = makeLicensedWriteLoadForecaster(() -> true, threadPool, maxIndexAge);
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, threadPool, maxIndexAge);
         writeLoadForecaster.refreshLicense();
 
         final ProjectMetadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
@@ -164,7 +163,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
     public void testForecastedWriteLoadIsOverriddenBySetting() {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
-        final WriteLoadForecaster writeLoadForecaster = makeLicensedWriteLoadForecaster(hasValidLicense::get, threadPool, maxIndexAge);
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, maxIndexAge);
         writeLoadForecaster.refreshLicense();
 
         final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
@@ -357,7 +356,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         final var collectingLoggingAssertion = new MockLog.SeenEventExpectation(
             "seen event",
-            WriteLoadForecasterPlugin.class.getCanonicalName(),
+            AbstractLicenseCheckingWriteLoadForecaster.class.getCanonicalName(),
             Level.INFO,
             "*"
         ) {
@@ -375,7 +374,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         MockLog.assertThatLogger(() -> {
             final var hasValidLicense = new AtomicBoolean();
-            final var writeLoadForecaster = makeLicensedWriteLoadForecaster(hasValidLicense::get, threadPool, randomTimeValue());
+            final var writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, randomTimeValue());
             assertThat(seenMessages, empty());
             writeLoadForecaster.refreshLicense();
             assertThat(seenMessages, empty());
@@ -400,7 +399,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
                     "license state changed, now [valid]"
                 )
             );
-        }, WriteLoadForecasterPlugin.class, collectingLoggingAssertion);
+        }, AbstractLicenseCheckingWriteLoadForecaster.class, collectingLoggingAssertion);
     }
 
     public void testShardIncreaseDoesNotIncreaseTotalLoad() {
@@ -415,7 +414,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
         final AtomicInteger licenseCheckCount = new AtomicInteger();
-        final WriteLoadForecaster writeLoadForecaster = makeLicensedWriteLoadForecaster(() -> {
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> {
             licenseCheckCount.incrementAndGet();
             return hasValidLicense.get();
         }, threadPool, maxIndexAge);
@@ -458,7 +457,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
     public void testCanHandleIndicesWithMissingShardWriteLoadsOrZeroUptime() {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
-        final WriteLoadForecaster writeLoadForecaster = makeLicensedWriteLoadForecaster(() -> true, threadPool, maxIndexAge);
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, threadPool, maxIndexAge);
         writeLoadForecaster.refreshLicense();
 
         final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
@@ -625,16 +624,5 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
         metadataBuilder.put(dataStream);
         return metadataBuilder;
-    }
-
-    private WriteLoadForecaster makeLicensedWriteLoadForecaster(
-        BooleanSupplier licenseSupplier,
-        ThreadPool threadPool,
-        TimeValue timeValue
-    ) {
-        return new WriteLoadForecasterPlugin.LicenseCheckingWriteLoadForecaster(
-            new LicensedWriteLoadForecaster(threadPool, timeValue),
-            licenseSupplier
-        );
     }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +29,7 @@ import java.util.OptionalLong;
 
 import static org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterPlugin.OVERRIDE_WRITE_LOAD_FORECAST_SETTING;
 
-class LicensedWriteLoadForecaster implements WriteLoadForecaster {
+class LicensedWriteLoadForecaster extends AbstractLicenseCheckingWriteLoadForecaster {
 
     private static final Logger logger = LogManager.getLogger(LicensedWriteLoadForecaster.class);
 
@@ -44,13 +43,21 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
     private final ThreadPool threadPool;
     private volatile TimeValue maxIndexAge;
 
-    LicensedWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
-        this(threadPool, MAX_INDEX_AGE_SETTING.get(settings));
+    // hasValidLicense is a protected field in AbstractLicenseCheckingWriteLoadForecaster
+
+    LicensedWriteLoadForecaster(
+        BooleanSupplier hasValidLicenseSupplier,
+        ThreadPool threadPool,
+        Settings settings,
+        ClusterSettings clusterSettings
+    ) {
+        this(hasValidLicenseSupplier, threadPool, MAX_INDEX_AGE_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(MAX_INDEX_AGE_SETTING, this::setMaxIndexAgeSetting);
     }
 
     // exposed for tests only
-    LicensedWriteLoadForecaster(ThreadPool threadPool, TimeValue maxIndexAge) {
+    LicensedWriteLoadForecaster(BooleanSupplier hasValidLicenseSupplier, ThreadPool threadPool, TimeValue maxIndexAge) {
+        super(hasValidLicenseSupplier);
         this.threadPool = threadPool;
         this.maxIndexAge = maxIndexAge;
     }
@@ -61,6 +68,10 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
 
     @Override
     public ProjectMetadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, ProjectMetadata.Builder metadata) {
+        if (hasValidLicense == false) {
+            return metadata;
+        }
+
         final DataStream dataStream = metadata.dataStream(dataStreamName);
 
         if (dataStream == null) {
@@ -170,6 +181,10 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
     @Override
     @SuppressForbidden(reason = "This is the only place where IndexMetadata#getForecastedWriteLoad is allowed to be used")
     public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
+        if (hasValidLicense == false) {
+            return OptionalDouble.empty();
+        }
+
         if (OVERRIDE_WRITE_LOAD_FORECAST_SETTING.exists(indexMetadata.getSettings())) {
             Double overrideWriteLoadForecast = OVERRIDE_WRITE_LOAD_FORECAST_SETTING.get(indexMetadata.getSettings());
             return OptionalDouble.of(overrideWriteLoadForecast);
@@ -177,7 +192,4 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
 
         return indexMetadata.getForecastedWriteLoad();
     }
-
-    @Override
-    public void refreshLicense() {}
 }
