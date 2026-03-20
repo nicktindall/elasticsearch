@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterPlugin.OVERRIDE_WRITE_LOAD_FORECAST_SETTING;
 
