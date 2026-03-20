@@ -28,7 +28,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.OptionalDouble;
 import java.util.function.BooleanSupplier;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.writeloadforecaster.LicensedWriteLoadForecaster.MAX_INDEX_AGE_SETTING;
 
@@ -77,8 +76,12 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         if (clusterInfoWriteLoadForecasterEnabled) {
             return List.of(new LicenseCheckingWriteLoadForecaster(new ClusterInfoWriteLoadForecaster(), this::hasValidLicense));
         } else {
-            return List.of(new LicenseCheckingWriteLoadForecaster(new LicensedWriteLoadForecaster(threadPool, settings, clusterSettings),
-                this::hasValidLicense));
+            return List.of(
+                new LicenseCheckingWriteLoadForecaster(
+                    new LicensedWriteLoadForecaster(threadPool, settings, clusterSettings),
+                    this::hasValidLicense
+                )
+            );
         }
     }
 

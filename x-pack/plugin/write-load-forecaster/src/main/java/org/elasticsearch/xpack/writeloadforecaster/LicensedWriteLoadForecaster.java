@@ -23,13 +23,10 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
-import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterPlugin.OVERRIDE_WRITE_LOAD_FORECAST_SETTING;
 
@@ -47,11 +44,7 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
     private final ThreadPool threadPool;
     private volatile TimeValue maxIndexAge;
 
-    LicensedWriteLoadForecaster(
-        ThreadPool threadPool,
-        Settings settings,
-        ClusterSettings clusterSettings
-    ) {
+    LicensedWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         this(threadPool, MAX_INDEX_AGE_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(MAX_INDEX_AGE_SETTING, this::setMaxIndexAgeSetting);
     }
@@ -184,7 +177,6 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
 
         return indexMetadata.getForecastedWriteLoad();
     }
-
 
     @Override
     public void refreshLicense() {}
