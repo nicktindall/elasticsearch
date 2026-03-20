@@ -106,7 +106,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(settings);
 
         // create a bunch of nodes, and three times the number of indices
-        int numberOfNodes = randomIntBetween(5, 10);
+        int numberOfNodes = randomIntBetween(3, 6);
         int numberOfIndices = 3 * numberOfNodes;
 
         List<String> nodeNames = internalCluster().startNodes(
