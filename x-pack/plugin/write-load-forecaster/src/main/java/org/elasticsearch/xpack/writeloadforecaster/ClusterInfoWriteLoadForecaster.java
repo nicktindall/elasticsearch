@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.writeloadforecaster;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -26,8 +24,6 @@ import java.util.stream.Collectors;
  */
 public class ClusterInfoWriteLoadForecaster extends AbstractLicenseCheckingWriteLoadForecaster {
 
-    private static final Logger logger = LogManager.getLogger(ClusterInfoWriteLoadForecaster.class);
-
     private volatile Map<Index, Double> indexWriteLoadForecasts = Map.of();
 
     public ClusterInfoWriteLoadForecaster(BooleanSupplier licenseSupplier) {
@@ -36,7 +32,6 @@ public class ClusterInfoWriteLoadForecaster extends AbstractLicenseCheckingWrite
 
     @Inject
     public void setClusterInfoService(ClusterInfoService clusterInfoService) {
-        logger.info("Registering cluster info listener");
         clusterInfoService.addListener(this::onNewClusterInfo);
     }
 
