@@ -34,10 +34,19 @@ public class ClusterInfoWriteLoadForecasterTests extends ESTestCase {
         Index index3 = indexMetadata3.getIndex();
         Index index4 = indexMetadata4.getIndex();
 
+        double index1WriteLoad = 0.0;
+        // test max calculation for representing one index, as index2WriteLoad2 is bigger
+        double index2WriteLoad1 = randomDoubleBetween(0.0, 20.0, true);
+        double index2WriteLoad2 = randomDoubleBetween(index2WriteLoad1, index2WriteLoad1 + 20.0, true);
+        double index3WriteLoad = randomDouble();
+
         final var clusterInfo = ClusterInfo.builder()
             .shardWriteLoads(
-                Map.of(new ShardId(index1, 1), 0.0, new ShardId(index2, 1), 0.2, new ShardId(index2, 2), 0.5, new ShardId(index3, 1), 0.6)
-            )
+                Map.of(new ShardId(index1, 1), index1WriteLoad,
+                      new ShardId(index2, 1), index2WriteLoad1,
+                      new ShardId(index2, 2), index2WriteLoad2,
+                      new ShardId(index3, 1), index3WriteLoad
+                ))
             .build();
 
         ClusterInfoWriteLoadForecaster writeLoadForecaster = new ClusterInfoWriteLoadForecaster(() -> true);
@@ -62,9 +71,9 @@ public class ClusterInfoWriteLoadForecasterTests extends ESTestCase {
         assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata1).isPresent(), false);
 
         writeLoadForecaster.refreshLicense();
-        assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata1).getAsDouble(), 0.0, 0.00001);
-        assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata2).getAsDouble(), 0.5, 0.00001);
-        assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata3).getAsDouble(), 0.6, 0.00001);
+        assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata1).getAsDouble(), index1WriteLoad, 0.00001);
+        assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata2).getAsDouble(), index2WriteLoad2, 0.00001);
+        assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata3).getAsDouble(), index3WriteLoad, 0.00001);
         assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata4).isPresent(), false);
     }
 }
