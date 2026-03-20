@@ -147,7 +147,6 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         // (allocation utilization thresholds will block this)
         Collections.shuffle(nodeNames, new Random(randomLong()));
         double shardWriteLoadBase = randomDoubleBetween(0.01, 0.05, true);
-        long shardDiskUsage = 10 * 400_000_000;
         for (String nodeName : nodeNames) {
             List<ShardStats> shardStats = new ArrayList<>();
             for (IndexMetadata indexMetadata : nodeIdsToIndexMetadata.getOrDefault(getNodeId(nodeName), List.of())) {
@@ -155,14 +154,13 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                     createShardStats(
                         indexMetadata,
                         0,
-                        shardDiskUsage,
+                        randomLongBetween(0L, 400_000_000L),
                         randomDoubleBetween(shardWriteLoadBase, shardWriteLoadBase + 0.05, true),
                         getNodeId(nodeName)
                     )
                 );
             }
             mockShardStatsForNode(clusterService().state(), nodeName, shardStats);
-            shardDiskUsage = Math.max(0, shardDiskUsage - randomLongBetween(100_000_000, 400_000_000));
             shardWriteLoadBase += randomDoubleBetween(0.01, 0.05, true);
         }
 
