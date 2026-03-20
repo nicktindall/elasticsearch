@@ -42,11 +42,17 @@ public class ClusterInfoWriteLoadForecasterTests extends ESTestCase {
 
         final var clusterInfo = ClusterInfo.builder()
             .shardWriteLoads(
-                Map.of(new ShardId(index1, 1), index1WriteLoad,
-                      new ShardId(index2, 1), index2WriteLoad1,
-                      new ShardId(index2, 2), index2WriteLoad2,
-                      new ShardId(index3, 1), index3WriteLoad
-                ))
+                Map.of(
+                    new ShardId(index1, 1),
+                    index1WriteLoad,
+                    new ShardId(index2, 1),
+                    index2WriteLoad1,
+                    new ShardId(index2, 2),
+                    index2WriteLoad2,
+                    new ShardId(index3, 1),
+                    index3WriteLoad
+                )
+            )
             .build();
 
         ClusterInfoWriteLoadForecaster writeLoadForecaster = new ClusterInfoWriteLoadForecaster(() -> true);
