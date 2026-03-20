@@ -53,7 +53,6 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME;
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME;
@@ -103,12 +102,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         DEFAULT_MAX_CONNECTION_IDLE_TIME,
         Setting.Property.NodeScope
     );
-
-    /**
-     * Timeout for graceful shutdown: wait for the connection pool to dispose and the Netty event loop to shut down.
-     * After this period, shutdown proceeds even if resources are not fully released.
-     */
-    private static final int SHUTDOWN_TIMEOUT_SECONDS = 15;
 
     private final ThreadPool threadPool;
     private final String reactorExecutorName;
@@ -263,23 +256,20 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     @Override
     protected void doStop() {
         closed = true;
-        try {
-            // Dispose the connection pool first and wait for it to complete. The pool uses the event loop,
-            // so we must not shut down the event loop until disposal is done (see reactor-netty ConnectionProvider).
-            connectionProvider.disposeLater().block(Duration.ofSeconds(SHUTDOWN_TIMEOUT_SECONDS));
-        } catch (Exception e) {
-            logger.warn("Error disposing Azure connection provider, continuing shutdown", e);
-        }
-        try {
-            // Now safe to shut down the event loop; use bounded wait so node shutdown does not hang
-            eventLoopGroup.shutdownGracefully().await(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.warn("Interrupted waiting for Azure Netty event loop shutdown", e);
-        } finally {
-            // Now everything is shut down, reset the factory to clear any cached schedulers
-            Schedulers.resetFactory();
-        }
+        // Dispose of the connection provider first and wait for it to complete before we close the event loop.
+        connectionProvider.disposeLater()
+            .timeout(Duration.ofSeconds(10))    // Limit how long we wait for the connection provider to close
+            .doFinally(signalType -> {
+                // Now safe to shut down the event loop
+                eventLoopGroup.shutdownGracefully().addListener(future -> {
+                    if (future.isSuccess() == false) {
+                        logger.warn("Error shutting down Azure event loop, but resetting schedulers anyway", future.cause());
+                    }
+                    // Now everything is shut down, reset the factory to clear any cached schedulers
+                    Schedulers.resetFactory();
+                });
+            })
+            .subscribe(null, throwable -> logger.warn("Error shutting down connection provider", throwable));
     }
 
     @Override
