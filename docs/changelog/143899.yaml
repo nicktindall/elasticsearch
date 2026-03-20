@@ -1,5 +1,0 @@
-area: Allocation
-issues: []
-pr: 143899
-summary: "Allocation: use cluster info write load for balancing metrics"
-type: enhancement
