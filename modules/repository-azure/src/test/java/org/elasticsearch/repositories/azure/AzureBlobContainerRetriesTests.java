@@ -408,13 +408,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                         exchange.close();
                         return;
                     }
-
-                    logger.info(
-                        "--> Got a put that wasn't handled: {}?{}, countdownComplete={}",
-                        exchange.getRequestURI().getPath(),
-                        exchange.getRequestURI().getRawQuery(),
-                        countDownComplete.isCountedDown()
-                    );
                 }
 
                 if (randomBoolean()) {

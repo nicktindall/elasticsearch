@@ -15,6 +15,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.resolver.DefaultAddressResolverGroup;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
@@ -260,6 +261,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         connectionProvider.disposeLater()
             .timeout(Duration.ofSeconds(10))    // Limit how long we wait for the connection provider to close
             .doFinally(signalType -> {
+                if (signalType != SignalType.ON_COMPLETE) {
+                    logger.info("Got unexpected signal type disposing connection provider: {}", signalType);
+                }
                 // Now safe to shut down the event loop
                 eventLoopGroup.shutdownGracefully().addListener(future -> {
                     if (future.isSuccess() == false) {
