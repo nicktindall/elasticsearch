@@ -329,7 +329,10 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 utilizationThresholdPercent + "%"
             )
-            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(), utilizationThresholdPercent + "%")
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                utilizationThresholdPercent + "%"
+            )
             .put(BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
             .put(WriteLoadForecasterPlugin.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), true)
             .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING.getKey(), "RECENT")

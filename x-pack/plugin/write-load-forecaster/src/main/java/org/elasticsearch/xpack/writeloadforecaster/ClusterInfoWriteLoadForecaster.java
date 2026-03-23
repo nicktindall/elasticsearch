@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.writeloadforecaster;
 
 import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.injection.guice.Inject;
 
 import java.util.Map;
 import java.util.OptionalDouble;
@@ -30,15 +28,11 @@ public class ClusterInfoWriteLoadForecaster extends AbstractLicenseCheckingWrite
         super(licenseSupplier);
     }
 
-    @Inject
-    public void setClusterInfoService(ClusterInfoService clusterInfoService) {
-        clusterInfoService.addListener(this::onNewClusterInfo);
-    }
-
     /**
      * We take the largest write-load we see for each index as indicative of the write-load
      */
-    private void onNewClusterInfo(ClusterInfo newClusterInfo) {
+    @Override
+    public void onNewClusterInfo(ClusterInfo newClusterInfo) {
         this.indexWriteLoadForecasts = newClusterInfo.getShardWriteLoads()
             .entrySet()
             .stream()

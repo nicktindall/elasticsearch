@@ -9,15 +9,12 @@ package org.elasticsearch.xpack.writeloadforecaster;
 
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 public class ClusterInfoWriteLoadForecasterTests extends ESTestCase {
     public void testClusterInfoProcessing() {
@@ -56,22 +53,7 @@ public class ClusterInfoWriteLoadForecasterTests extends ESTestCase {
             .build();
 
         ClusterInfoWriteLoadForecaster writeLoadForecaster = new ClusterInfoWriteLoadForecaster(() -> true);
-        AtomicReference<Consumer<ClusterInfo>> onNewClusterInfoCallback = new AtomicReference<>();
-        writeLoadForecaster.setClusterInfoService(new ClusterInfoService() {
-            @Override
-            public ClusterInfo getClusterInfo() {
-                return clusterInfo;
-            }
-
-            @Override
-            public void addListener(Consumer<ClusterInfo> clusterInfoConsumer) {
-                onNewClusterInfoCallback.set(clusterInfoConsumer);
-            }
-        });
-
-        assert onNewClusterInfoCallback.get() != null;
-
-        onNewClusterInfoCallback.get().accept(clusterInfo);
+        writeLoadForecaster.onNewClusterInfo(clusterInfo);
 
         // there is no value before the license refresh
         assertEquals(writeLoadForecaster.getForecastedWriteLoad(indexMetadata1).isPresent(), false);
