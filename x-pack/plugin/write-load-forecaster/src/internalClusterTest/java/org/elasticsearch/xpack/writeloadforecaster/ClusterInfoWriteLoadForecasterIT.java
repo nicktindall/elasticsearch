@@ -145,7 +145,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         // the mininum will always be less than 0.9 for any node (allocation utilization thresholds
         // will block this)
         Collections.shuffle(nodeNames, new Random(randomLong()));
-        double shardWriteLoadBase = randomDoubleBetween(0.01, 0.05, true);
+        double shardWriteLoadBase = 0.1;
         for (String nodeName : nodeNames) {
             List<ShardStats> shardStats = new ArrayList<>();
             for (IndexMetadata indexMetadata : nodeIdsToIndexMetadata.getOrDefault(getNodeId(nodeName), List.of())) {
@@ -154,13 +154,13 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                         indexMetadata,
                         0,
                         randomLongBetween(0L, 400_000_000L),
-                        randomDoubleBetween(shardWriteLoadBase, shardWriteLoadBase + 0.05, true),
+                        randomDoubleBetween(shardWriteLoadBase, shardWriteLoadBase + 0.1, true),
                         getNodeId(nodeName)
                     )
                 );
             }
             mockShardStatsForNode(clusterService().state(), nodeName, shardStats);
-            shardWriteLoadBase += randomDoubleBetween(0.01, 0.05, true);
+            shardWriteLoadBase += .1;
         }
 
         // ensure that the write loads get propagated before the hotspot
@@ -173,11 +173,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         final String coldNodeId = getNodeId(coldNode);
 
         for (String nodeName : nodeNames) {
-            if (nodeName == hotNode) {
-                simulateWriteLoadThreadPool(hotNode, queueLatencyThresholdMillis, utilizationThresholdPercent + 1 / 100.0f, true);
-            } else {
-                simulateWriteLoadThreadPool(hotNode, queueLatencyThresholdMillis, utilizationThresholdPercent + 1 / 100.0f, false);
-            }
+            simulateWriteLoadThreadPool(hotNode, queueLatencyThresholdMillis, utilizationThresholdPercent / 100.0f, nodeName == hotNode);
         }
 
         // check hotspot is detected
@@ -299,10 +295,10 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         final float utilization;
         final long latency;
         if (hotspot) {
-            utilization = randomFloatBetween(utilizationThreshold, 1.0f, true);
-            latency = randomLongBetween(queueLatencyThresholdMillis * 2, queueLatencyThresholdMillis * 3);
+            utilization = randomFloatBetween(utilizationThreshold + .01f, 1.1f, true);
+            latency = randomLongBetween(queueLatencyThresholdMillis + 1, queueLatencyThresholdMillis * 3);
         } else {
-            utilization = randomFloatBetween(utilizationThreshold, 0.1f, true);
+            utilization = randomFloatBetween(0.0f, utilizationThreshold - .01f, true);
             latency = randomLongBetween(0, queueLatencyThresholdMillis - 1);
         }
         return stringThreadPoolUsageStatsMap.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
@@ -333,7 +329,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 utilizationThresholdPercent + "%"
             )
-            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(), 90 + "%")
+            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(), utilizationThresholdPercent + "%")
             .put(BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
             .put(WriteLoadForecasterPlugin.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), true)
             .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING.getKey(), "RECENT")
