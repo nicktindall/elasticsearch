@@ -144,7 +144,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
         // order shards with an inrease in shard write load, ensuring that the max shard write load +
         // the mininum will always be less than 0.9 for any node (allocation utilization thresholds
         // will block this)
-        Collections.shuffle(nodeNames, new Random(randomLong()));
+        Collections.shuffle(nodeNames, random());
         double shardWriteLoadBase = 0.1;
         for (String nodeName : nodeNames) {
             List<ShardStats> shardStats = new ArrayList<>();
