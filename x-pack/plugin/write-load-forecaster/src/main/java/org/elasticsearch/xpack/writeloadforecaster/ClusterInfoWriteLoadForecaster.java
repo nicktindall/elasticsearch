@@ -31,7 +31,6 @@ public class ClusterInfoWriteLoadForecaster extends AbstractLicenseCheckingWrite
     /**
      * We take the largest write-load we see for each index as indicative of the write-load
      */
-    @Override
     public void onNewClusterInfo(ClusterInfo newClusterInfo) {
         this.indexWriteLoadForecasts = newClusterInfo.getShardWriteLoads()
             .entrySet()

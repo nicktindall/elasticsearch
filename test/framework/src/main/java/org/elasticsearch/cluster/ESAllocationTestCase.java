@@ -92,9 +92,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     public static final WriteLoadForecaster TEST_WRITE_LOAD_FORECASTER = new WriteLoadForecaster() {
         @Override
-        public void onNewClusterInfo(ClusterInfo clusterInfo) {}
-
-        @Override
         public ProjectMetadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, ProjectMetadata.Builder metadata) {
             throw new AssertionError("Not required for testing");
         }

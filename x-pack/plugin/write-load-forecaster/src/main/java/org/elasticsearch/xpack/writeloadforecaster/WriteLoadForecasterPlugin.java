@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.writeloadforecaster;
 
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -78,14 +77,11 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
     }
 
     public static class DelegateDynamicSettingsChangerWriteLoadForecaster implements WriteLoadForecaster {
-        private ThreadPool threadPool;
-        private Settings settings;
-        private ClusterSettings clusterSettings;
-        private BooleanSupplier licenseCheck;
+        private final ClusterInfoWriteLoadForecaster clusterInfoForecaster;
+        private final LicensedWriteLoadForecaster licensedForecaster;
 
         private volatile WriteLoadForecaster delegateForecaster;
         private volatile boolean clusterInfoWriteLoadForecasterEnabled;
-        private volatile ClusterInfo lastClusterInfo;
 
         public DelegateDynamicSettingsChangerWriteLoadForecaster(
             final ThreadPool threadPool,
@@ -93,10 +89,8 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
             final ClusterSettings clusterSettings,
             final BooleanSupplier licenseCheck
         ) {
-            this.threadPool = threadPool;
-            this.settings = settings;
-            this.clusterSettings = clusterSettings;
-            this.licenseCheck = licenseCheck;
+            this.clusterInfoForecaster = new ClusterInfoWriteLoadForecaster(licenseCheck);
+            this.licensedForecaster = new LicensedWriteLoadForecaster(licenseCheck, threadPool, settings, clusterSettings);
 
             // set up with initial forecaster
             clusterInfoWriteLoadForecasterEnabled = false;
@@ -113,25 +107,15 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
 
         private void handleChangedWriteLoadForecaster() {
             if (clusterInfoWriteLoadForecasterEnabled) {
-                delegateForecaster = new ClusterInfoWriteLoadForecaster(licenseCheck);
+                delegateForecaster = clusterInfoForecaster;
             } else {
-                delegateForecaster = new LicensedWriteLoadForecaster(licenseCheck, threadPool, settings, clusterSettings);
-            }
-            if (lastClusterInfo != null) {
-                // bring new delegate up to date when it changes
-                delegateForecaster.onNewClusterInfo(lastClusterInfo);
+                delegateForecaster = licensedForecaster;
             }
         }
 
         @Inject
         public void setClusterInfoService(ClusterInfoService clusterInfoService) {
-            clusterInfoService.addListener(this::onNewClusterInfo);
-        }
-
-        @Override
-        public void onNewClusterInfo(ClusterInfo newClusterInfo) {
-            lastClusterInfo = newClusterInfo;
-            delegateForecaster.onNewClusterInfo(newClusterInfo);
+            clusterInfoService.addListener(this.clusterInfoForecaster::onNewClusterInfo);
         }
 
         @Override

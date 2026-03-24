@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.writeloadforecaster;
 
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -46,9 +45,6 @@ public abstract class AbstractLicenseCheckingWriteLoadForecaster implements Writ
             throw new RuntimeException(e);
         }
     }
-
-    @Override
-    public void onNewClusterInfo(ClusterInfo newClusterInfo) {}
 
     public abstract ProjectMetadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, ProjectMetadata.Builder metadata);
 
