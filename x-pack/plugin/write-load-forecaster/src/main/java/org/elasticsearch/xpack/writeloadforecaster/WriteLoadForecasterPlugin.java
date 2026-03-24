@@ -72,7 +72,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         /**
          * Return a wrapper forecaster around a delegate WriteLoadForecaster, where the wrapper switches between
          * ClusterInfoWriteLoadForecaster and LicensedWriteLoadForecaster as the setting CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING
-         * changes. This extra layer is needed, because createWriteLoadForecaster is only called during node setup */
+         * changes. This extra layer is needed, because createWriteLoadForecasters is only called during node setup */
         return List.of(new DelegateDynamicSettingsChangerWriteLoadForecaster(threadPool, settings, clusterSettings, this::hasValidLicense));
     }
 
