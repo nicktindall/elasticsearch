@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.writeloadforecaster;
 
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -14,7 +15,6 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -67,16 +67,26 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
     public Collection<WriteLoadForecaster> createWriteLoadForecasters(
         ThreadPool threadPool,
         Settings settings,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        ClusterInfoService clusterInfoService
     ) {
         /**
          * Return a wrapper forecaster around a delegate WriteLoadForecaster, where the wrapper switches between
          * ClusterInfoWriteLoadForecaster and LicensedWriteLoadForecaster as the setting CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING
          * changes. This extra layer is needed, because createWriteLoadForecasters is only called during node setup */
-        return List.of(new DelegateDynamicSettingsChangerWriteLoadForecaster(threadPool, settings, clusterSettings, this::hasValidLicense));
+        return List.of(
+            new DelegateDynamicSettingsChangerWriteLoadForecaster(
+                threadPool,
+                settings,
+                clusterSettings,
+                clusterInfoService,
+                this::hasValidLicense
+            )
+        );
     }
 
     public static class DelegateDynamicSettingsChangerWriteLoadForecaster implements WriteLoadForecaster {
+        private final ClusterInfoService clusterInfoService;
         private final ClusterInfoWriteLoadForecaster clusterInfoForecaster;
         private final LicensedWriteLoadForecaster licensedForecaster;
 
@@ -84,13 +94,16 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         private volatile boolean clusterInfoWriteLoadForecasterEnabled;
 
         public DelegateDynamicSettingsChangerWriteLoadForecaster(
-            final ThreadPool threadPool,
-            final Settings settings,
-            final ClusterSettings clusterSettings,
-            final BooleanSupplier licenseCheck
+            ThreadPool threadPool,
+            Settings settings,
+            ClusterSettings clusterSettings,
+            ClusterInfoService clusterInfoService,
+            BooleanSupplier licenseCheck
         ) {
             this.clusterInfoForecaster = new ClusterInfoWriteLoadForecaster(licenseCheck);
             this.licensedForecaster = new LicensedWriteLoadForecaster(licenseCheck, threadPool, settings, clusterSettings);
+            this.clusterInfoService = clusterInfoService;
+            this.clusterInfoService.addListener(this::onNewClusterInfo);
 
             // set up with initial forecaster
             clusterInfoWriteLoadForecasterEnabled = false;
@@ -107,15 +120,18 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
 
         private void handleChangedWriteLoadForecaster() {
             if (clusterInfoWriteLoadForecasterEnabled) {
+                // set up with last cluster info before setting as delegate
+                clusterInfoForecaster.onNewClusterInfo(clusterInfoService.getClusterInfo());
                 delegateForecaster = clusterInfoForecaster;
             } else {
                 delegateForecaster = licensedForecaster;
             }
         }
 
-        @Inject
-        public void setClusterInfoService(ClusterInfoService clusterInfoService) {
-            clusterInfoService.addListener(this.clusterInfoForecaster::onNewClusterInfo);
+        private void onNewClusterInfo(ClusterInfo clusterInfo) {
+            if (delegateForecaster == clusterInfoForecaster) {
+                clusterInfoForecaster.onNewClusterInfo(clusterInfo);
+            }
         }
 
         @Override
