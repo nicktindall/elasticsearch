@@ -162,17 +162,16 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
             shardWriteLoadBase += .1;
         }
 
+        // ensure that the write loads get propagated before the hotspot does
         refreshClusterInfo();
 
         // turn on cluster info write load forecaster, checking that this setting is interpreted live
+        // and testing partly that the cluster info is passed into the delegate
         updateClusterSettings(
             Settings.builder()
                 .put(settings)
                 .put(WriteLoadForecasterPlugin.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.getKey(), true)
         );
-
-        // ensure that the write loads get propagated before the hotspot does
-        ClusterInfo refreshedClusterInfo = refreshClusterInfo();
 
         // simulate a hotspot on one of them, and see a shard move to the lowest one
         final String hotNode = nodeNames.get(nodeNames.size() - 1);
