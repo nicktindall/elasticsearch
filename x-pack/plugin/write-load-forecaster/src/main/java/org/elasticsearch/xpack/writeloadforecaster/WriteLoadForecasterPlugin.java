@@ -89,7 +89,9 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         private final ThreadPool threadPool;
         private final Settings settings;
         private final ClusterSettings clusterSettings;
+        private final BooleanSupplier licenseCheck;
         private final ClusterInfoService clusterInfoService;
+
         private volatile WriteLoadForecaster delegateForecaster;
 
         public DelegateDynamicSettingsChangerWriteLoadForecaster(
@@ -102,6 +104,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
             this.threadPool = threadPool;
             this.settings = settings;
             this.clusterSettings = clusterSettings;
+            this.licenseCheck = licenseCheck;
 
             this.clusterInfoService = clusterInfoService;
             this.clusterInfoService.addListener(this::onNewClusterInfo);
