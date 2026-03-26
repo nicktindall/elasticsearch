@@ -125,7 +125,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         }
 
         private void onNewClusterInfo(ClusterInfo clusterInfo) {
-            if (delegateForecaster instanceof ClusterInfoWriteLoadForecaster clusterinfoForecaster) {
+            if (delegateForecaster instanceof ClusterInfoWriteLoadForecaster clusterInfoForecaster) {
                 clusterInfoForecaster.onNewClusterInfo(clusterInfo);
             }
         }
