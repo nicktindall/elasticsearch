@@ -86,12 +86,11 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
     }
 
     public static class DelegateDynamicSettingsChangerWriteLoadForecaster implements WriteLoadForecaster {
+        private final ThreadPool threadPool;
+        private final Settings settings;
+        private final ClusterSettings clusterSettings;
         private final ClusterInfoService clusterInfoService;
-        private final ClusterInfoWriteLoadForecaster clusterInfoForecaster;
-        private final LicensedWriteLoadForecaster licensedForecaster;
-
         private volatile WriteLoadForecaster delegateForecaster;
-        private volatile boolean clusterInfoWriteLoadForecasterEnabled;
 
         public DelegateDynamicSettingsChangerWriteLoadForecaster(
             ThreadPool threadPool,
@@ -100,36 +99,31 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
             ClusterInfoService clusterInfoService,
             BooleanSupplier licenseCheck
         ) {
-            this.clusterInfoForecaster = new ClusterInfoWriteLoadForecaster(licenseCheck);
-            this.licensedForecaster = new LicensedWriteLoadForecaster(licenseCheck, threadPool, settings, clusterSettings);
+            this.threadPool = threadPool;
+            this.settings = settings;
+            this.clusterSettings = clusterSettings;
+
             this.clusterInfoService = clusterInfoService;
             this.clusterInfoService.addListener(this::onNewClusterInfo);
 
-            // set up with initial forecaster
-            clusterInfoWriteLoadForecasterEnabled = false;
-            handleChangedWriteLoadForecaster();
-
             clusterSettings.initializeAndWatch(CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING, value -> {
-                boolean oldClusterInfoWriteLoadForecasterEnabled = clusterInfoWriteLoadForecasterEnabled;
-                clusterInfoWriteLoadForecasterEnabled = value;
-                if (clusterInfoWriteLoadForecasterEnabled != oldClusterInfoWriteLoadForecasterEnabled) {
-                    handleChangedWriteLoadForecaster();
-                }
+                handleChangedWriteLoadForecaster();
             });
         }
 
-        private void handleChangedWriteLoadForecaster() {
-            if (clusterInfoWriteLoadForecasterEnabled) {
+        private void handleChangedWriteLoadForecaster(boolean clusterInfoForecasterEnabled) {
+            if (clusterInfoForecasterEnabled) {
                 // set up with last cluster info before setting as delegate
+                var clusterInfoForecaster = new ClusterInfoWriteLoadForecaster(licenseCheck);
                 clusterInfoForecaster.onNewClusterInfo(clusterInfoService.getClusterInfo());
                 delegateForecaster = clusterInfoForecaster;
             } else {
-                delegateForecaster = licensedForecaster;
+                delegateForecaster = new LicensedWriteLoadForecaster(licenseCheck, threadPool, settings, clusterSettings);
             }
         }
 
         private void onNewClusterInfo(ClusterInfo clusterInfo) {
-            if (delegateForecaster == clusterInfoForecaster) {
+            if (delegateForecaster instanceof ClusterInfoWriteLoadForecaster clusterinfoForecaster) {
                 clusterInfoForecaster.onNewClusterInfo(clusterInfo);
             }
         }
