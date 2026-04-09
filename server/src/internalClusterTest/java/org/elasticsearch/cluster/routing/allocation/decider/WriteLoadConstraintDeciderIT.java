@@ -659,6 +659,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .put(onlyRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE)))
             .build();
         final var dataNodes = internalCluster().startNodes(3, settings);
+        ensureStableCluster(3);
 
         // Refresh cluster info (should trigger polling)
         refreshClusterInfo();
