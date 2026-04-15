@@ -116,14 +116,14 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         }
 
         private void handleChangedWriteLoadForecaster(boolean clusterInfoForecasterEnabled) {
-            if (clusterInfoForecasterEnabled) {
-                // set up with last cluster info before setting as delegate
-                var clusterInfoForecaster = new ClusterInfoWriteLoadForecaster(licenseCheck);
-                clusterInfoForecaster.onNewClusterInfo(clusterInfoService.getClusterInfo());
-                delegateForecaster = clusterInfoForecaster;
-            } else {
-                delegateForecaster = new LicensedWriteLoadForecaster(licenseCheck, threadPool, settings, clusterSettings);
-            }
+            // if (clusterInfoForecasterEnabled) {
+            // // set up with last cluster info before setting as delegate
+            // var clusterInfoForecaster = new ClusterInfoWriteLoadForecaster(licenseCheck);
+            // clusterInfoForecaster.onNewClusterInfo(clusterInfoService.getClusterInfo());
+            // delegateForecaster = clusterInfoForecaster;
+            // } else {
+            delegateForecaster = new LicensedWriteLoadForecaster(licenseCheck, threadPool, settings, clusterSettings);
+            // }
         }
 
         private void onNewClusterInfo(ClusterInfo clusterInfo) {
