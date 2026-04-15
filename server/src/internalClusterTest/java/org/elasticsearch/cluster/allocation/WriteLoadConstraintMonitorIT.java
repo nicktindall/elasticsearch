@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.allocation;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -27,13 +28,12 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
-import org.junit.Ignore;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@Ignore
+@LuceneTestCase.AwaitsFix(bugUrl = "https://not.a.real.url/")
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
 public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
 
