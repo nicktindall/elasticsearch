@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndPath;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
@@ -175,6 +176,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         );
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://not.a.real.url/")
     public void testNoInfiniteLoopBetweenHotspotMitigationAndBalancing() {
         // This test demonstrates that the computer does not get stuck in an infinite loop when moveShards and balancer moving against
         // each other. This is done by configuring two shards each on its own node.
