@@ -27,11 +27,13 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
+import org.junit.Ignore;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Ignore
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
 public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
 

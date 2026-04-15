@@ -62,7 +62,6 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
@@ -845,15 +844,15 @@ class NodeConstruction {
             )::onNewInfo
         );
 
-        clusterInfoService.addListener(
-            new WriteLoadConstraintMonitor(
-                writeLoadConstraintSettings,
-                threadPool.relativeTimeInMillisSupplier(),
-                clusterService::state,
-                rerouteService,
-                telemetryProvider.getMeterRegistry()
-            )::onNewInfo
-        );
+        // clusterInfoService.addListener(
+        // new WriteLoadConstraintMonitor(
+        // writeLoadConstraintSettings,
+        // threadPool.relativeTimeInMillisSupplier(),
+        // clusterService::state,
+        // rerouteService,
+        // telemetryProvider.getMeterRegistry()
+        // )::onNewInfo
+        // );
 
         clusterInfoService.addListener(new WriteLoadMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo);
 
