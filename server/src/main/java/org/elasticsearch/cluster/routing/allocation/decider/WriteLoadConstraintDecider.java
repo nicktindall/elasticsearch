@@ -231,13 +231,15 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                         """
                             Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread \
                             pool utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard \
-                            write load [%s]. Should move shard(s) away""",
+                            write load [%s]. Max write load proportion [%.3f], threshold [%.2f]. Should move shard(s) away""",
                         node.getShortNodeDescription(),
                         nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
                         nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
                         nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
                         writeLoadConstraintSettings.getHotspotUtilizationThresholdString(),
-                        shardWriteLoad == null ? "unknown" : shardWriteLoad
+                        shardWriteLoad == null ? "unknown" : shardWriteLoad,
+                        maxShardWriteLoadProportion.get(),
+                        maxShardWriteLoadThreshold
                     );
                     if (logger.isDebugEnabled()) {
                         logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
