@@ -227,18 +227,22 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportion.get(), maxShardWriteLoadThreshold) == false) {
                 if (logger.isDebugEnabled() || allocation.debugDecision()) {
                     final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
+                    // Avoid calculating the max shard write-load proportion if the feature is turned off
+                    final var maxSharWriteLoadProportionString = maxShardWriteLoadThreshold == 0.0
+                        ? "n/a"
+                        : Strings.format("%.1f%%", maxShardWriteLoadProportion.get() * 100);
                     final String explain = Strings.format(
                         """
                             Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread \
                             pool utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard \
-                            write load [%s]. Max shard write load proportion [%.1f%%], threshold [%s]. Should move shard(s) away""",
+                            write load [%s]. Max shard write load proportion [%s], threshold [%s]. Should move shard(s) away""",
                         node.getShortNodeDescription(),
                         nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
                         nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
                         nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
                         writeLoadConstraintSettings.getHotspotUtilizationThresholdString(),
                         shardWriteLoad == null ? "unknown" : shardWriteLoad,
-                        maxShardWriteLoadProportion.get() * 100,
+                        maxSharWriteLoadProportionString,
                         writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
                     );
                     if (logger.isDebugEnabled()) {
