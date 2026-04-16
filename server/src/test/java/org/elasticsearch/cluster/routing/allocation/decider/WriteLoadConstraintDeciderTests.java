@@ -479,6 +479,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .formatNoTrailingZerosPercent();
         final long highLatencyThreshold = randomLongBetween(1000, 10000);
         final String highLatencyThresholdString = new TimeValue(highLatencyThreshold).toHumanReadableString(2);
+        final int maxShardWriteLoadProportionPercent = randomIntBetween(80, 95);
         final var settings = Settings.builder()
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
@@ -488,6 +489,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(highLatencyThreshold)
+            )
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING.getKey(),
+                maxShardWriteLoadProportionPercent + "%"
             )
             .build();
         final var decider = createWriteLoadConstraintDecider(settings);
@@ -576,13 +581,13 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     """
                         Node \\[.*\\] has a queue latency of \\[%d\\] millis that exceeds the queue latency threshold of \\[%s\\] and a \
                         thread pool utilization of \\[%f\\] that exceeds the utilization threshold of \\[%s\\]. This node is \
-                        hot-spotting. Shard write load \\[.*\\]. Max write load proportion \\[%.3f\\], threshold \\[%.2f\\]. Should move shard\\(s\\) away""",
+                        hot-spotting. Shard write load \\[.*\\]. Max shard write load proportion \\[0.0%%\\], threshold \\[%d%%\\]. \
+                        Should move shard\\(s\\) away""",
                     latency,
                     highLatencyThresholdString,
                     utilization,
                     hotspotUtilizationThresholdString,
-                    0.0,
-                    0.95
+                    maxShardWriteLoadProportionPercent
                 )
             )
         );
@@ -742,7 +747,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertEquals(Decision.Type.YES, moveDecision.type());
         String explanationRegex = Strings.format("""
             Node \\[%s\\] is hot-spotting due to a single shard executing \\[95.00\\] percent of the writes. But since this is above the \
-            single shard write load threshold \\(\\[90.00\\]\\), moving shards away from this node is not expected to resolve the \
+            single shard write load threshold \\(\\[90%%\\]\\), moving shards away from this node is not expected to resolve the \
             hot-spot.""", node.getShortNodeDescription());
 
         assertThat(moveDecision.getExplanation(), matchesPattern(explanationRegex));

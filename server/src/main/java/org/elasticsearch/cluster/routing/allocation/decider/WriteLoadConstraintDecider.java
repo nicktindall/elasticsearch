@@ -231,15 +231,15 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                         """
                             Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread \
                             pool utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard \
-                            write load [%s]. Max write load proportion [%.3f], threshold [%.2f]. Should move shard(s) away""",
+                            write load [%s]. Max shard write load proportion [%.1f%%], threshold [%s]. Should move shard(s) away""",
                         node.getShortNodeDescription(),
                         nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
                         nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
                         nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
                         writeLoadConstraintSettings.getHotspotUtilizationThresholdString(),
                         shardWriteLoad == null ? "unknown" : shardWriteLoad,
-                        maxShardWriteLoadProportion.get(),
-                        maxShardWriteLoadThreshold
+                        maxShardWriteLoadProportion.get() * 100,
+                        writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
                     );
                     if (logger.isDebugEnabled()) {
                         logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
@@ -254,11 +254,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                     NAME,
                     """
                         Node [%s] is hot-spotting due to a single shard executing [%.2f] percent of the writes. But since this is above \
-                        the single shard write load threshold ([%.2f]), moving shards away from this node is not expected to resolve \
+                        the single shard write load threshold ([%s]), moving shards away from this node is not expected to resolve \
                         the hot-spot.""",
                     node.getShortNodeDescription(),
                     maxShardWriteLoadProportion.get() * 100,
-                    maxShardWriteLoadThreshold * 100
+                    writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
                 );
             }
         }
