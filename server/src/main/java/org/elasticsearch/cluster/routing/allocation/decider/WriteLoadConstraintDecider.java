@@ -30,7 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.function.DoubleSupplier;
 
 /**
  * Decides whether shards can be allocated to cluster nodes, or can remain on cluster nodes, based on the target node's current write thread
@@ -212,7 +212,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             // The maxShardWriteLoadProportion is computed only for hot-spotting nodes, and cached within cluster info so it
             // is only computed once per balancing round.
             final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThreshold();
-            final Supplier<Double> maxShardWriteLoadProportion = () -> allocation.clusterInfo()
+            final DoubleSupplier maxShardWriteLoadProportion = () -> allocation.clusterInfo()
                 .nodeMaxShardWriteLoadProportion(
                     node.nodeId(),
                     // compute cache entry if absent
@@ -224,13 +224,13 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
 
             // check that the threshold comparison is enabled (not 0.0) before computing the maxShardWriteLoadProportion
             if (maxShardWriteLoadThreshold == 0.0
-                || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportion.get(), maxShardWriteLoadThreshold) == false) {
+                || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportion.getAsDouble(), maxShardWriteLoadThreshold) == false) {
                 if (logger.isDebugEnabled() || allocation.debugDecision()) {
                     final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
                     // Avoid calculating the max shard write-load proportion if the feature is turned off
                     final var maxSharWriteLoadProportionString = maxShardWriteLoadThreshold == 0.0
                         ? "n/a"
-                        : Strings.format("%.1f%%", maxShardWriteLoadProportion.get() * 100);
+                        : Strings.format("%.1f%%", maxShardWriteLoadProportion.getAsDouble() * 100);
                     final String explain = Strings.format(
                         """
                             Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread \
@@ -246,7 +246,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                             ? "Max shard proportion is disabled"
                             : "The max shard write load proportion on this node is "
                                 + maxSharWriteLoadProportionString
-                                + ", below the hot shard threshold of "
+                                + ", below the single-hot-shard threshold of "
                                 + writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
                     );
                     if (logger.isDebugEnabled()) {
@@ -265,7 +265,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                         the single shard write load threshold ([%s]), moving shards away from this node is not expected to resolve \
                         the hot-spot.""",
                     node.getShortNodeDescription(),
-                    maxShardWriteLoadProportion.get() * 100,
+                    maxShardWriteLoadProportion.getAsDouble() * 100,
                     writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
                 );
             }
