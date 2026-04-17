@@ -242,8 +242,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                         nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
                         writeLoadConstraintSettings.getHotspotUtilizationThresholdString(),
                         shardWriteLoad == null ? "unknown" : shardWriteLoad,
-                        maxSharWriteLoadProportionString,
-                        writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
+                        maxShardWriteLoadThreshold == 0.0 ? 
+                            "Max shard proportion is disabled"
+                            : "The max shard write load proportion on this node is " + maxSharWriteLoadProportionString 
+                            + ", below the hot shard threshold of "
+                            + writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
                     );
                     if (logger.isDebugEnabled()) {
                         logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
