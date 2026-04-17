@@ -542,7 +542,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     """
                         Node \\[.*\\] has a queue latency of \\[%d\\] millis that exceeds the queue latency threshold of \\[%s\\] and a \
                         thread pool utilization of \\[%f\\] that exceeds the utilization threshold of \\[%s\\]. This node is \
-                        hot-spotting. Shard write load \\[.*\\]. The max shard write load proportion on this node is 0.0%%, below \
+                        hot-spotting. Shard write load \\[.*\\]. The max shard write-load proportion on this node is 0.0%%, below \
                         the single-hot-shard threshold of %d%%. Should move shard\\(s\\) away""",
                     latencyMillis,
                     highLatencyThresholdString,
@@ -596,7 +596,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     """
                         Node \\[.*\\] has a queue latency of \\[%d\\] millis that exceeds the queue latency threshold of \\[%s\\] and a \
                         thread pool utilization of \\[%f\\] that exceeds the utilization threshold of \\[%s\\]. This node is \
-                        hot-spotting. Shard write load \\[.*\\]. Max shard proportion is disabled. Should move shard\\(s\\) away""",
+                        hot-spotting. Shard write load \\[.*\\]. Max shard write-load proportion is disabled. Should move shard\\(s\\) away""",
                     latencyMillis,
                     highLatencyThresholdString,
                     utilization,

@@ -242,9 +242,9 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                         writeLoadConstraintSettings.getHotspotUtilizationThresholdString(),
                         shardWriteLoad == null ? "unknown" : shardWriteLoad,
                         maxShardWriteLoadThreshold == 0.0
-                            ? "Max shard proportion is disabled"
+                            ? "Max shard write-load proportion is disabled"
                             : Strings.format(
-                                "The max shard write load proportion on this node is %.1f%%, below the single-hot-shard threshold of %s",
+                                "The max shard write-load proportion on this node is %.1f%%, below the single-hot-shard threshold of %s",
                                 maxShardWriteLoadProportionCalculated,
                                 writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
                             )
