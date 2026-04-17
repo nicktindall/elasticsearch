@@ -230,10 +230,6 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportionCalculated, maxShardWriteLoadThreshold) == false) {
                 if (logger.isDebugEnabled() || allocation.debugDecision()) {
                     final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
-                    // Avoid calculating the max shard write-load proportion if the feature is turned off
-                    final var maxSharWriteLoadProportionString = maxShardWriteLoadThreshold == 0.0
-                        ? "n/a"
-                        : Strings.format("%.1f%%", maxShardWriteLoadProportionCalculated * 100);
                     final String explain = Strings.format(
                         """
                             Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread \
@@ -247,10 +243,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                         shardWriteLoad == null ? "unknown" : shardWriteLoad,
                         maxShardWriteLoadThreshold == 0.0
                             ? "Max shard proportion is disabled"
-                            : "The max shard write load proportion on this node is "
-                                + maxSharWriteLoadProportionString
-                                + ", below the single-hot-shard threshold of "
-                                + writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
+                            : Strings.format(
+                                "The max shard write load proportion on this node is %.1f%%, below the single-hot-shard threshold of %s",
+                                maxShardWriteLoadProportionCalculated,
+                                writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
+                            )
                     );
                     if (logger.isDebugEnabled()) {
                         logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
