@@ -51,7 +51,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests for {@link StatelessMemoryMetricsService}, focusing on {@code getPerNodeMemoryMetrics} and {@code getShardHeapUsages}.
@@ -413,7 +415,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         // update indexing operations heap memory requirement
         final long indexingOperationsHeapMemoryRequirements = randomLongBetween(1_000, 100_000);
-        service.updateIndexingOperationsHeapMemoryRequirements(indexingOperationsHeapMemoryRequirements);
+        service.updateIndexingOperationsHeapMemoryRequirements(indexingOperationsHeapMemoryRequirements, randomLongBetween(0, 1_000));
 
         // All nodes' heap estimate should have increased
         {
@@ -429,6 +431,32 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 equalTo(indexingOperationsHeapMemoryRequirements)
             );
         }
+    }
+
+    public void testUpdateIndexingOperationsHeapMemoryRequirementsTracksLargestOperationSize() {
+        final long opSize1 = randomLongBetween(1_000, 100_000);
+        final long minHeap1 = opSize1 * 4;
+        service.updateIndexingOperationsHeapMemoryRequirements(minHeap1, opSize1);
+        var reqs = service.getValidIndexingOperationsHeapMemoryRequirements();
+        assertThat(reqs, is(notNullValue()));
+        assertThat(reqs.minimumRequiredHeapInBytes(), equalTo(minHeap1));
+        assertThat(reqs.largestOperationSizeInBytes(), equalTo(opSize1));
+
+        // A lower heap requirement (and operation size) does not displace the existing record
+        final long opSize2 = opSize1 / 2;
+        final long minHeap2 = opSize2 * 4;
+        service.updateIndexingOperationsHeapMemoryRequirements(minHeap2, opSize2);
+        reqs = service.getValidIndexingOperationsHeapMemoryRequirements();
+        assertThat(reqs.minimumRequiredHeapInBytes(), equalTo(minHeap1));
+        assertThat(reqs.largestOperationSizeInBytes(), equalTo(opSize1));
+
+        // A higher heap requirement replaces the record, carrying its operation size
+        final long opSize3 = opSize1 * 2;
+        final long minHeap3 = opSize3 * 4;
+        service.updateIndexingOperationsHeapMemoryRequirements(minHeap3, opSize3);
+        reqs = service.getValidIndexingOperationsHeapMemoryRequirements();
+        assertThat(reqs.minimumRequiredHeapInBytes(), equalTo(minHeap3));
+        assertThat(reqs.largestOperationSizeInBytes(), equalTo(opSize3));
     }
 
     private ClusterState randomInitialTwoNodeClusterState(int numberOfIndices) {

@@ -21,15 +21,25 @@ public class PublishIndexingOperationsHeapMemoryRequirementsRequestSerialization
 
     @Override
     protected TransportPublishIndexingOperationsHeapMemoryRequirements.Request createTestInstance() {
-        return new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(randomLongBetween(0, Long.MAX_VALUE));
+        return new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(
+            randomLongBetween(0, Long.MAX_VALUE),
+            randomLongBetween(0, Long.MAX_VALUE)
+        );
     }
 
     @Override
     protected TransportPublishIndexingOperationsHeapMemoryRequirements.Request mutateInstance(
         TransportPublishIndexingOperationsHeapMemoryRequirements.Request instance
     ) throws IOException {
+        if (randomBoolean()) {
+            return new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(
+                randomValueOtherThan(instance.getMinimumRequiredHeapInBytes(), () -> randomLongBetween(0, Long.MAX_VALUE)),
+                instance.getLargestOperationSizeInBytes()
+            );
+        }
         return new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(
-            randomValueOtherThan(instance.getMinimumRequiredHeapInBytes(), () -> randomLongBetween(0, Long.MAX_VALUE))
+            instance.getMinimumRequiredHeapInBytes(),
+            randomValueOtherThan(instance.getLargestOperationSizeInBytes(), () -> randomLongBetween(0, Long.MAX_VALUE))
         );
     }
 }

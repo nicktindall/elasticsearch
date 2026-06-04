@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.stateless.memory;
 
 import java.util.Comparator;
 
-public record IndexingOperationsMemoryRequirements(long minimumRequiredHeapInBytes, long validUntil)
+public record IndexingOperationsMemoryRequirements(long minimumRequiredHeapInBytes, long largestOperationSizeInBytes, long validUntil)
     implements
         Comparable<IndexingOperationsMemoryRequirements> {
     private static final Comparator<IndexingOperationsMemoryRequirements> COMPARATOR = Comparator.nullsFirst(
         Comparator.comparingLong(IndexingOperationsMemoryRequirements::minimumRequiredHeapInBytes)
+            .thenComparingLong(IndexingOperationsMemoryRequirements::largestOperationSizeInBytes)
             .thenComparing(IndexingOperationsMemoryRequirements::validUntil)
     );
 

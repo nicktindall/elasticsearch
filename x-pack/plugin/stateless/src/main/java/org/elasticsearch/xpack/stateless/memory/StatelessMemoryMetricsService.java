@@ -409,11 +409,12 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         }
     }
 
-    public void updateIndexingOperationsHeapMemoryRequirements(long indexingHeapMemoryRequirements) {
+    public void updateIndexingOperationsHeapMemoryRequirements(long indexingHeapMemoryRequirements, long largestOperationSizeInBytes) {
         long nowInNanos = relativeTimeInNanosSupplier.getAsLong();
         indexingOperationsHeapMemoryRequirementsRef.accumulateAndGet(
             new IndexingOperationsMemoryRequirements(
                 indexingHeapMemoryRequirements,
+                largestOperationSizeInBytes,
                 nowInNanos + indexingOperationsMemoryMetricsValidityDuration.nanos()
             ),
             (existing, proposed) -> {
