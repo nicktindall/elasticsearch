@@ -35,8 +35,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class NodeCacheCommitmentMetrics {
 
-    public static final String BOOSTED_CACHE_COMMITMENT_METRIC_NAME = "es.node.cache.boosted_commitment.current";
-    public static final String TOTAL_CACHE_COMMITMENT_METRIC_NAME = "es.node.cache.total_commitment.current";
+    public static final String BOOSTED_CACHE_COMMITMENT_METRIC_NAME = "es.allocator.cache_commitments.boosted.current";
+    public static final String TOTAL_CACHE_COMMITMENT_METRIC_NAME = "es.allocator.cache_commitments.total.current";
 
     private final ClusterService clusterService;
     private final AtomicReference<List<DoubleWithAttributes>> lastBoostedCommitmentMetrics = new AtomicReference<>(List.of());
