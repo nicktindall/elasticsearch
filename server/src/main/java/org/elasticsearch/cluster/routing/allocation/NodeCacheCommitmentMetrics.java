@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.NodeCacheSizeAndCommitments;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
@@ -21,6 +22,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.ToLongFunction;
 
 /**
  * Publishes per-node cache commitment metrics derived from {@link ClusterInfo#getNodeCacheSizeAndCommitments()}.
@@ -32,6 +34,9 @@ import java.util.concurrent.atomic.AtomicReference;
  *     <li>boosted commitment only</li>
  *     <li>total commitment (boosted + unboosted)</li>
  * </ul>
+ * <p>
+ * Each gauge holds its own {@link ClusterInfo} reference that is consumed (cleared) when APM polls, so each
+ * {@link ClusterInfo} drives at most one round of reported metrics per gauge.
  */
 public class NodeCacheCommitmentMetrics {
 
@@ -39,9 +44,8 @@ public class NodeCacheCommitmentMetrics {
     public static final String TOTAL_CACHE_COMMITMENT_METRIC_NAME = "es.allocator.cache_commitments.total.current";
 
     private final ClusterService clusterService;
-    private final AtomicReference<List<DoubleWithAttributes>> lastBoostedCommitmentMetrics = new AtomicReference<>(List.of());
-    private final AtomicReference<List<DoubleWithAttributes>> lastTotalCommitmentMetrics = new AtomicReference<>(List.of());
-    private volatile boolean lastMetricsCollected = true;
+    private final AtomicReference<ClusterInfo> boostedClusterInfo = new AtomicReference<>();
+    private final AtomicReference<ClusterInfo> totalClusterInfo = new AtomicReference<>();
 
     public NodeCacheCommitmentMetrics(MeterRegistry meterRegistry, ClusterService clusterService) {
         this.clusterService = clusterService;
@@ -60,44 +64,8 @@ public class NodeCacheCommitmentMetrics {
     }
 
     public void onNewInfo(ClusterInfo clusterInfo) {
-        if (clusterService.lifecycleState() != Lifecycle.State.STARTED || lastMetricsCollected == false) {
-            return;
-        }
-
-        var nodeCacheSizeAndCommitments = clusterInfo.getNodeCacheSizeAndCommitments();
-        if (nodeCacheSizeAndCommitments.isEmpty()) {
-            return;
-        }
-
-        var clusterState = clusterService.state();
-        var boostedMetrics = new ArrayList<DoubleWithAttributes>(nodeCacheSizeAndCommitments.size());
-        var totalMetrics = new ArrayList<DoubleWithAttributes>(nodeCacheSizeAndCommitments.size());
-
-        for (var entry : nodeCacheSizeAndCommitments.entrySet()) {
-            var commitments = entry.getValue();
-            if (commitments.cacheSizeInBytes() <= 0) {
-                continue;
-            }
-
-            var node = clusterState.nodes().get(entry.getKey());
-            if (node == null) {
-                continue;
-            }
-
-            var attrs = getAttributesForNode(node);
-            double cacheSize = commitments.cacheSizeInBytes();
-            boostedMetrics.add(new DoubleWithAttributes(commitments.boostedCacheCommitmentInBytes() / cacheSize, attrs));
-            totalMetrics.add(
-                new DoubleWithAttributes(
-                    (commitments.boostedCacheCommitmentInBytes() + commitments.unboostedCacheCommitmentInBytes()) / cacheSize,
-                    attrs
-                )
-            );
-        }
-
-        lastMetricsCollected = false;
-        lastBoostedCommitmentMetrics.set(boostedMetrics);
-        lastTotalCommitmentMetrics.set(totalMetrics);
+        boostedClusterInfo.set(clusterInfo);
+        totalClusterInfo.set(clusterInfo);
     }
 
     private static Map<String, Object> getAttributesForNode(DiscoveryNode node) {
@@ -106,15 +74,46 @@ public class NodeCacheCommitmentMetrics {
 
     // visible for testing
     final Collection<DoubleWithAttributes> getBoostedCommitmentMetrics() {
-        var metrics = lastBoostedCommitmentMetrics.getAndSet(List.of());
-        lastMetricsCollected = true;
-        return metrics;
+        return computeMetrics(boostedClusterInfo.getAndSet(null), NodeCacheSizeAndCommitments::boostedCacheCommitmentInBytes);
     }
 
     // visible for testing
     final Collection<DoubleWithAttributes> getTotalCommitmentMetrics() {
-        var metrics = lastTotalCommitmentMetrics.getAndSet(List.of());
-        lastMetricsCollected = true;
+        return computeMetrics(totalClusterInfo.getAndSet(null), NodeCacheSizeAndCommitments::totalCacheCommitmentInBytes);
+    }
+
+    private Collection<DoubleWithAttributes> computeMetrics(
+        ClusterInfo clusterInfo,
+        ToLongFunction<NodeCacheSizeAndCommitments> commitmentFunction
+    ) {
+        if (clusterInfo == null || clusterService.lifecycleState() != Lifecycle.State.STARTED) {
+            return List.of();
+        }
+
+        var nodeCacheSizeAndCommitments = clusterInfo.getNodeCacheSizeAndCommitments();
+        if (nodeCacheSizeAndCommitments.isEmpty()) {
+            return List.of();
+        }
+
+        var clusterState = clusterService.state();
+        var metrics = new ArrayList<DoubleWithAttributes>(nodeCacheSizeAndCommitments.size());
+
+        for (var entry : nodeCacheSizeAndCommitments.entrySet()) {
+            final var nodeCommitments = entry.getValue();
+            final long nodeCacheSizeInBytes = nodeCommitments.cacheSizeInBytes();
+            if (nodeCacheSizeInBytes <= 0) {
+                continue;
+            }
+
+            final var discoveryNode = clusterState.nodes().get(entry.getKey());
+            if (discoveryNode == null) {
+                continue;
+            }
+
+            double value = commitmentFunction.applyAsLong(nodeCommitments) / (double) nodeCacheSizeInBytes;
+            metrics.add(new DoubleWithAttributes(value, getAttributesForNode(discoveryNode)));
+        }
+
         return metrics;
     }
 }

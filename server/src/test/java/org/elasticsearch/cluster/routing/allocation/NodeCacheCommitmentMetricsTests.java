@@ -161,7 +161,7 @@ public class NodeCacheCommitmentMetricsTests extends ESTestCase {
         assertThat(totalMeasurements(env), empty());
     }
 
-    public void testSecondOnNewInfoCallIgnoredUntilMetricsAreCollected() {
+    public void testLatestClusterInfoWinsAndMetricsAreConsumedOnPoll() {
         final var env = createTestEnvironment();
 
         final var firstInfo = ClusterInfo.builder()
@@ -172,19 +172,18 @@ public class NodeCacheCommitmentMetricsTests extends ESTestCase {
             .build();
 
         env.metrics.onNewInfo(firstInfo);
-        // Second call before collection — must be a no-op
+        // Second call before collection — latest wins
         env.metrics.onNewInfo(secondInfo);
         env.registry.getRecorder().collect();
 
-        // First call's data (boosted = 300/1000 = 0.3) must be reported, not second call's (0.05)
-        assertThat(measurementForNode(boostedMeasurements(env), env.node1.getId()).getDouble(), closeTo(0.3, 1e-9));
-
-        // After collection, the flag resets and a new call should be accepted
-        env.registry.getRecorder().resetCalls();
-        env.metrics.onNewInfo(secondInfo);
-        env.registry.getRecorder().collect();
-
+        // Second call's data (boosted = 50/1000 = 0.05) must be reported
         assertThat(measurementForNode(boostedMeasurements(env), env.node1.getId()).getDouble(), closeTo(0.05, 1e-9));
+
+        // Metrics are consumed on poll — a second collect without a new onNewInfo call produces nothing
+        env.registry.getRecorder().resetCalls();
+        env.registry.getRecorder().collect();
+        assertThat(boostedMeasurements(env), empty());
+        assertThat(totalMeasurements(env), empty());
     }
 
     // --- helpers ---
