@@ -454,6 +454,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     otherRouting.primary(),
                     otherRouting.state()
                 ).withRelocatingNodeId(otherRouting.relocatingNodeId())
+                    .withRecoveryPriority(otherRouting.recoveryPriority())
                     .withUnassignedInfo(
                         otherRouting.unassignedInfo() == null
                             ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
