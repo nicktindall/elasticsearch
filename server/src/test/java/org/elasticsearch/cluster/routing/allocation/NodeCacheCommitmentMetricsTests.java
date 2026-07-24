@@ -87,9 +87,13 @@ public class NodeCacheCommitmentMetricsTests extends ESTestCase {
         env.metrics.onNewInfo(clusterInfo);
         env.registry.getRecorder().collect();
 
-        final var measurement = measurementForNode(boostedMeasurements(env), env.node1.getId());
-        assertThat(measurement.attributes().get("es_node_id"), equalTo(env.node1.getId()));
-        assertThat(measurement.attributes().get("es_node_name"), equalTo(env.node1.getName()));
+        final var boostedMeasurement = measurementForNode(boostedMeasurements(env), env.node1.getId());
+        assertThat(boostedMeasurement.attributes().get("es_node_id"), equalTo(env.node1.getId()));
+        assertThat(boostedMeasurement.attributes().get("es_node_name"), equalTo(env.node1.getName()));
+
+        final var totalMeasurement = measurementForNode(totalMeasurements(env), env.node1.getId());
+        assertThat(totalMeasurement.attributes().get("es_node_id"), equalTo(env.node1.getId()));
+        assertThat(totalMeasurement.attributes().get("es_node_name"), equalTo(env.node1.getName()));
     }
 
     public void testEmptyNodeCacheSizeAndCommitmentsProducesNoMeasurements() {
