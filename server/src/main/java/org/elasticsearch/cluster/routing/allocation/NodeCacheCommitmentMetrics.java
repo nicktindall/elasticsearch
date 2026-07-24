@@ -19,6 +19,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -75,8 +76,13 @@ public class NodeCacheCommitmentMetrics {
         if (boostedCommitmentMetrics.get() == null && totalCommitmentMetrics.get() == null) {
             final var clusterInfo = latestClusterInfo.getAndSet(null);
             if (clusterInfo != null) {
-                boostedCommitmentMetrics.set(computeMetrics(clusterInfo, NodeCacheSizeAndCommitments::boostedCacheCommitmentInBytes));
-                totalCommitmentMetrics.set(computeMetrics(clusterInfo, NodeCacheSizeAndCommitments::totalCacheCommitmentInBytes));
+                final var attributesCache = new HashMap<DiscoveryNode, Map<String, Object>>();
+                boostedCommitmentMetrics.set(
+                    computeMetrics(clusterInfo, NodeCacheSizeAndCommitments::boostedCacheCommitmentInBytes, attributesCache)
+                );
+                totalCommitmentMetrics.set(
+                    computeMetrics(clusterInfo, NodeCacheSizeAndCommitments::totalCacheCommitmentInBytes, attributesCache)
+                );
             }
         }
     }
@@ -101,7 +107,8 @@ public class NodeCacheCommitmentMetrics {
 
     private Collection<DoubleWithAttributes> computeMetrics(
         ClusterInfo clusterInfo,
-        ToLongFunction<NodeCacheSizeAndCommitments> commitmentFunction
+        ToLongFunction<NodeCacheSizeAndCommitments> commitmentFunction,
+        Map<DiscoveryNode, Map<String, Object>> attributesCache
     ) {
         if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
             return List.of();
@@ -128,7 +135,12 @@ public class NodeCacheCommitmentMetrics {
             }
 
             double value = commitmentFunction.applyAsLong(nodeCommitments) / (double) nodeCacheSizeInBytes;
-            metrics.add(new DoubleWithAttributes(value, getAttributesForNode(discoveryNode)));
+            metrics.add(
+                new DoubleWithAttributes(
+                    value,
+                    attributesCache.computeIfAbsent(discoveryNode, NodeCacheCommitmentMetrics::getAttributesForNode)
+                )
+            );
         }
 
         return metrics;
