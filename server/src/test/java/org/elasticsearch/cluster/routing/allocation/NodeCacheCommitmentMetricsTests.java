@@ -186,6 +186,52 @@ public class NodeCacheCommitmentMetricsTests extends ESTestCase {
         assertThat(totalMeasurements(env), empty());
     }
 
+    public void testBoostedAndTotalMetricsAreDerivedFromSameClusterInfoWhenNewInfoArrivesInTheInterim() {
+        final var env = createTestEnvironment();
+
+        final var v1Commitments = randomNodeCacheSizeAndCommitments();
+        final var v1 = ClusterInfo.builder().nodeCacheSizeAndCommitments(Map.of(env.node1.getId(), v1Commitments)).build();
+        final var v2Commitments = randomValueOtherThan(v1Commitments, this::randomNodeCacheSizeAndCommitments);
+        final var v2 = ClusterInfo.builder().nodeCacheSizeAndCommitments(Map.of(env.node1.getId(), v2Commitments)).build();
+
+        env.metrics.onNewInfo(v1);
+
+        // Simulate the first APM gauge poll: computation is triggered from v1 and boosted metrics are returned
+        final var boostedFromFirstPoll = env.metrics.getBoostedCommitmentMetrics();
+
+        // A new ClusterInfo arrives before the second gauge is polled
+        env.metrics.onNewInfo(v2);
+
+        // Simulate the second APM gauge poll: total metrics must come from v1, not v2
+        final var totalFromSecondPoll = env.metrics.getTotalCommitmentMetrics();
+
+        final var node1Boosted = boostedFromFirstPoll.stream()
+            .filter(m -> env.node1.getId().equals(m.attributes().get("es_node_id")))
+            .findFirst()
+            .orElseThrow();
+        assertThat(
+            node1Boosted.value(),
+            closeTo(v1Commitments.boostedCacheCommitmentInBytes() / (double) v1Commitments.cacheSizeInBytes(), 1e-9)
+        );
+
+        // total must be from v1, not v2
+        final var node1Total = totalFromSecondPoll.stream()
+            .filter(m -> env.node1.getId().equals(m.attributes().get("es_node_id")))
+            .findFirst()
+            .orElseThrow();
+        assertThat(
+            node1Total.value(),
+            closeTo(v1Commitments.totalCacheCommitmentInBytes() / (double) v1Commitments.cacheSizeInBytes(), 1e-9)
+        );
+    }
+
+    private NodeCacheSizeAndCommitments randomNodeCacheSizeAndCommitments() {
+        long cacheSizeInBytes = randomLongBetween(1_000_000, 5_000_000);
+        long boostedCacheCommitmentInBytes = randomLongBetween(1_000, 10_000_000);
+        long unboostedCacheCommitmentInBytes = randomLongBetween(1_000, 10_000_000);
+        return new NodeCacheSizeAndCommitments(cacheSizeInBytes, boostedCacheCommitmentInBytes, unboostedCacheCommitmentInBytes);
+    }
+
     // --- helpers ---
 
     private record TestEnvironment(

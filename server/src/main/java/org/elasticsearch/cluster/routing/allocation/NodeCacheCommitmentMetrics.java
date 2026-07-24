@@ -44,8 +44,9 @@ public class NodeCacheCommitmentMetrics {
     public static final String TOTAL_CACHE_COMMITMENT_METRIC_NAME = "es.allocator.cache_commitments.total.current";
 
     private final ClusterService clusterService;
-    private final AtomicReference<ClusterInfo> boostedClusterInfo = new AtomicReference<>();
-    private final AtomicReference<ClusterInfo> totalClusterInfo = new AtomicReference<>();
+    private final AtomicReference<ClusterInfo> latestClusterInfo = new AtomicReference<>();
+    private final AtomicReference<Collection<DoubleWithAttributes>> boostedCommitmentMetrics = new AtomicReference<>();
+    private final AtomicReference<Collection<DoubleWithAttributes>> totalCommitmentMetrics = new AtomicReference<>();
 
     public NodeCacheCommitmentMetrics(MeterRegistry meterRegistry, ClusterService clusterService) {
         this.clusterService = clusterService;
@@ -64,8 +65,20 @@ public class NodeCacheCommitmentMetrics {
     }
 
     public void onNewInfo(ClusterInfo clusterInfo) {
-        boostedClusterInfo.set(clusterInfo);
-        totalClusterInfo.set(clusterInfo);
+        latestClusterInfo.set(clusterInfo);
+    }
+
+    /// Compute both sets of metrics from the latest [ClusterInfo] if we haven't already computed them since the last poll.
+    ///
+    /// This ensures that for any poll the two sets of metrics are consistent
+    private void computeMetricsFromClusterInfo() {
+        if (boostedCommitmentMetrics.get() == null && totalCommitmentMetrics.get() == null) {
+            final var clusterInfo = latestClusterInfo.getAndSet(null);
+            if (clusterInfo != null) {
+                boostedCommitmentMetrics.set(computeMetrics(clusterInfo, NodeCacheSizeAndCommitments::boostedCacheCommitmentInBytes));
+                totalCommitmentMetrics.set(computeMetrics(clusterInfo, NodeCacheSizeAndCommitments::totalCacheCommitmentInBytes));
+            }
+        }
     }
 
     private static Map<String, Object> getAttributesForNode(DiscoveryNode node) {
@@ -74,19 +87,23 @@ public class NodeCacheCommitmentMetrics {
 
     // visible for testing
     final Collection<DoubleWithAttributes> getBoostedCommitmentMetrics() {
-        return computeMetrics(boostedClusterInfo.getAndSet(null), NodeCacheSizeAndCommitments::boostedCacheCommitmentInBytes);
+        computeMetricsFromClusterInfo();
+        final var metrics = boostedCommitmentMetrics.getAndSet(null);
+        return metrics != null ? metrics : List.of();
     }
 
     // visible for testing
     final Collection<DoubleWithAttributes> getTotalCommitmentMetrics() {
-        return computeMetrics(totalClusterInfo.getAndSet(null), NodeCacheSizeAndCommitments::totalCacheCommitmentInBytes);
+        computeMetricsFromClusterInfo();
+        final var metrics = totalCommitmentMetrics.getAndSet(null);
+        return metrics != null ? metrics : List.of();
     }
 
     private Collection<DoubleWithAttributes> computeMetrics(
         ClusterInfo clusterInfo,
         ToLongFunction<NodeCacheSizeAndCommitments> commitmentFunction
     ) {
-        if (clusterInfo == null || clusterService.lifecycleState() != Lifecycle.State.STARTED) {
+        if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
             return List.of();
         }
 
