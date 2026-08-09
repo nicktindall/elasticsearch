@@ -12,6 +12,7 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -22,6 +23,9 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
@@ -49,7 +53,13 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
         ensureStableCluster(2);
 
         final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), 2.0)
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), 2)
+                .build()
+        );
         ensureGreen(indexName);
 
         final TestStatelessPlugin plugin = findPlugin(indexNode, TestStatelessPlugin.class);
@@ -57,13 +67,18 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
         final var indexShard = findIndexShard(indexName);
 
         logger.info("--> indexing and flush docs to trigger background merge");
-        for (int i = 0; i < 11; i++) {
+        for (int i = 0; i < 30; i++) {
             indexDocs(indexName, 10);
             flush(indexName);
         }
 
         // Wait for merge to trigger and evict cache so that merge will attempt to fill the cache
         safeAwait(plugin.mergeReadStartedLatch);
+
+        indexDocs(indexName, 10);
+        var flushFuture = indicesAdmin().prepareFlush(indexName).execute();
+        indexDocs(indexName, 10);
+
         logger.info("--> evict cache after merge read started");
         final var blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
         getCacheService(blobStoreCacheDirectory).forceEvict((key) -> true);
@@ -111,11 +126,31 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
                 protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
                     if (ThreadPool.Names.MERGE.equals(EsExecutors.executorName(Thread.currentThread()))) {
                         mergeReadStartedLatch.countDown();
-                        safeAwait(cacheEvictedLatch);
+                        try {
+                            safeAwait(cacheEvictedLatch);
+                        } catch (AssertionError e) {
+                            System.out.println("--> merge thread is blocked, dumping thread dump");
+                            logThreadDump();
+                            throw e;
+                        }
                     }
                     return super.doOpenInput(name, context, blobFileRanges);
                 }
             };
+        }
+
+        public static void logThreadDump() {
+            ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+            // Retrieve all thread IDs, lock monitors, and synchronizers
+            ThreadInfo[] threadInfos = threadMXBean.dumpAllThreads(true, true);
+
+            StringBuilder dump = new StringBuilder();
+            for (ThreadInfo threadInfo : threadInfos) {
+                dump.append(threadInfo.toString());
+            }
+
+            // Print to stdout or pass to your logging framework (SLF4J, Log4j2)
+            System.out.println(dump.toString());
         }
 
         @Override
