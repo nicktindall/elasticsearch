@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexSettings;
@@ -139,18 +140,26 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
             };
         }
 
-        public static void logThreadDump() {
+        public static synchronized void logThreadDump() {
             ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
             // Retrieve all thread IDs, lock monitors, and synchronizers
             ThreadInfo[] threadInfos = threadMXBean.dumpAllThreads(true, true);
 
             StringBuilder dump = new StringBuilder();
             for (ThreadInfo threadInfo : threadInfos) {
-                dump.append(threadInfo.toString());
+                // Print basic thread metadata
+                dump.append(
+                    Strings.format("\"%s\" Id=%d %s%n", threadInfo.getThreadName(), threadInfo.getThreadId(), threadInfo.getThreadState())
+                );
+
+                // Loop through all frames manually to bypass the 8-frame toString() limit
+                for (StackTraceElement frame : threadInfo.getStackTrace()) {
+                    dump.append("\tat ").append(frame).append("\n");
+                }
             }
 
             // Print to stdout or pass to your logging framework (SLF4J, Log4j2)
-            System.out.println(dump.toString());
+            System.out.println(dump);
         }
 
         @Override
