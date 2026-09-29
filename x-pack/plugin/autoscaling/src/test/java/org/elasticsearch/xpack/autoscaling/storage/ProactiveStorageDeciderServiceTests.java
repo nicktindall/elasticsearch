@@ -182,7 +182,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         @FixForMultiProject(description = "Use non-default project ID and remove last boolean parameter")
         ProjectMetadata originalProject = DataStreamTestHelper.getProjectWithDataStreams(
             Metadata.DEFAULT_PROJECT_ID,
-            List.of(Tuple.tuple("test", between(1, 10))),
+            List.of(Tuple.tuple("test", between(2, 10))),
             List.of(),
             System.currentTimeMillis(),
             Settings.EMPTY,
